@@ -55,7 +55,7 @@ message-bg-color: "#00000000"
     top   = 90%
     width = 55%
     align = "left"
-    text  = "Booting in %d s   ·   ↑ ↓   ·   ↵"
+    text  = "Booting in %d seconds"
     font  = "Cormorant Bold 26"
     color = "#c0a098"
 }
