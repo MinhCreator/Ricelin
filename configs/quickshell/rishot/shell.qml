@@ -313,12 +313,47 @@ ShellRoot {
     function grabTo(path, after) {
         var w = anchorOverlay();
         if (!w) { if (after) after(false); return; }
-        if (spansMonitors())
-            console.log("rishot: TODO seam-stitch (Phase 6) — grabbing anchor-monitor portion only");
+        if (spansMonitors()) { seamStitch(path, after); return; }
         w.grabExport(path, function (ok) {
             console.log("rishot: grab " + path + " => " + ok);
             if (after) after(ok);
         });
+    }
+
+    function seamStitch(path, after) {
+        var slices = [];
+        for (var i = 0; i < overlays.length; i++) {
+            var s = overlays[i].modelData;
+            var inter = Coords.intersectRect(globalSel, { x: s.x, y: s.y, width: s.width, height: s.height });
+            if (!inter) continue;
+            slices.push({
+                win: overlays[i],
+                tmp: "/tmp/rishot-seam-" + i + ".png",
+                ox: Math.round(s.x + inter.x - globalSel.x),
+                oy: Math.round(s.y + inter.y - globalSel.y)
+            });
+        }
+        if (slices.length === 0) { if (after) after(false); return; }
+        if (slices.length === 1) { slices[0].win.grabExport(path, after); return; }
+        var done = 0, okAll = true;
+        for (var j = 0; j < slices.length; j++) {
+            (function (sl) {
+                sl.win.grabExport(sl.tmp, function (ok) {
+                    if (!ok) okAll = false;
+                    done += 1;
+                    if (done === slices.length) compositeSlices(slices, path, okAll, after);
+                });
+            })(slices[j]);
+        }
+    }
+
+    function compositeSlices(slices, path, okAll, after) {
+        if (!okAll) { console.log("rishot: seam-stitch slice grab failed"); if (after) after(false); return; }
+        var args = ["magick", "-size", Math.round(globalSel.w) + "x" + Math.round(globalSel.h), "xc:black"];
+        for (var i = 0; i < slices.length; i++)
+            args = args.concat([slices[i].tmp, "-geometry", "+" + slices[i].ox + "+" + slices[i].oy, "-composite"]);
+        args.push(path);
+        stitchProc.runWith(args, after);
     }
 
     function doCopy() {
@@ -410,6 +445,18 @@ ShellRoot {
         command: ["hyprctl", "clients", "-j"]
         stdout: StdioCollector { id: clientsOut }
         onExited: root.parseWindows(activeWs, clientsOut.text)
+    }
+
+    Process {
+        id: stitchProc
+        property var cb: null
+        function runWith(args, after) { cb = after; command = args; running = true; }
+        onExited: (code) => {
+            console.log("rishot: seam-stitch composite exit " + code);
+            var f = cb;
+            cb = null;
+            if (f) f(code === 0);
+        }
     }
 
     function noteFrozen() {
