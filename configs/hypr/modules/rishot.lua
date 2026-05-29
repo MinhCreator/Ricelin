@@ -1,1 +1,1 @@
-hl.bind("Print", hl.dsp.exec_cmd("flock -n /tmp/rishot.lock qs -c rishot"))
+hl.bind("Print", hl.dsp.exec_cmd("flock -n -o /tmp/rishot.lock qs -c rishot"))
