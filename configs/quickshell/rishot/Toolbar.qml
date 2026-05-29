@@ -91,10 +91,9 @@ Item {
                     readonly property bool sel: Qt.colorEqual(tb.activeColor, modelData)
                     border.color: sel ? "#ffffff" : Qt.rgba(1, 1, 1, 0.18)
                     border.width: sel ? 2 : 1
-                    HoverHandler { id: swHover }
-                    scale: swHover.hovered ? 1.12 : 1.0
+                    scale: swMa.containsMouse ? 1.12 : 1.0
                     Behavior on scale { NumberAnimation { duration: 90 } }
-                    TapHandler { onTapped: tb.colorPicked(modelData) }
+                    MouseArea { id: swMa; anchors.fill: parent; hoverEnabled: true; onClicked: tb.colorPicked(modelData) }
                 }
             }
 
@@ -108,9 +107,8 @@ Item {
                     Layout.preferredHeight: 26
                     radius: 6
                     readonly property bool sel: tb.activeWidth === modelData.id
-                    color: sel ? tb.vermilion : (whHover.hovered ? Qt.rgba(1, 1, 1, 0.06) : "transparent")
-                    HoverHandler { id: whHover }
-                    TapHandler { onTapped: tb.widthPicked(modelData.id) }
+                    color: sel ? tb.vermilion : (whMa.containsMouse ? Qt.rgba(1, 1, 1, 0.06) : "transparent")
+                    MouseArea { id: whMa; anchors.fill: parent; hoverEnabled: true; onClicked: tb.widthPicked(modelData.id) }
                     Rectangle {
                         anchors.centerIn: parent
                         width: modelData.dot

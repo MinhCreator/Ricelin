@@ -9,9 +9,24 @@ Item {
     property var model: null
     property var draft: null
     property int revision: 0
+    property var selectedIndex: null
+    property var moveOffset: null
+
+    function shifted(a, dx, dy) {
+        var pts = [];
+        for (var i = 0; i < a.points.length; i++)
+            pts.push({ x: a.points[i].x + dx, y: a.points[i].y + dy });
+        var copy = JSON.parse(JSON.stringify(a));
+        copy.points = pts;
+        return copy;
+    }
 
     function items() {
         var src = model ? model.items.slice() : [];
+        if (selectedIndex !== null && moveOffset
+            && (moveOffset.x !== 0 || moveOffset.y !== 0)
+            && selectedIndex >= 0 && selectedIndex < src.length)
+            src[selectedIndex] = shifted(src[selectedIndex], moveOffset.x, moveOffset.y);
         if (draft) src.push(draft);
         return src;
     }

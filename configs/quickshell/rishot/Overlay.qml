@@ -17,6 +17,8 @@ Item {
     property var draft: null
     property int annRevision: 0
     property bool textEditing: false
+    property var selectedIndex: null
+    property var moveOffset: null
 
     signal pressedAt(real gx, real gy)
     signal movedTo(real gx, real gy)
@@ -34,6 +36,32 @@ Item {
 
     readonly property color dimColor: Qt.rgba(8 / 255, 10 / 255, 16 / 255, 0.62)
     readonly property color vermilion: "#e0563b"
+
+    function selectionBox() {
+        if (selectedIndex === null || !model
+            || selectedIndex < 0 || selectedIndex >= model.items.length) return null;
+        var a = model.items[selectedIndex];
+        var off = moveOffset || { x: 0, y: 0 };
+        var xs = a.points.map(function (p) { return p.x; });
+        var ys = a.points.map(function (p) { return p.y; });
+        var x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs);
+        var y0 = Math.min.apply(null, ys), y1 = Math.max.apply(null, ys);
+        var pad = Math.max((a.width || 4), 6);
+        if (a.type === "text") {
+            var size = a.size || 16;
+            x1 = x0 + Math.max((a.text ? a.text.length : 1) * size * 0.6, size);
+            y1 = y0 + size * 1.4;
+            pad = 4;
+        }
+        return {
+            x: x0 - sx + off.x - pad,
+            y: y0 - sy + off.y - pad,
+            w: (x1 - x0) + pad * 2,
+            h: (y1 - y0) + pad * 2
+        };
+    }
+
+    readonly property var selBox: { annRevision; return selectionBox(); }
 
     Item {
         id: scene
@@ -100,6 +128,8 @@ Item {
             model: overlay.model
             draft: overlay.draft
             revision: overlay.annRevision
+            selectedIndex: overlay.selectedIndex
+            moveOffset: overlay.moveOffset
         }
     }
 
@@ -199,6 +229,40 @@ Item {
             font.pixelSize: 13
             x: 0
             y: -height - 4
+        }
+    }
+
+    Item {
+        id: annSelection
+        visible: overlay.ready && overlay.selBox !== null
+        x: overlay.selBox ? overlay.selBox.x : 0
+        y: overlay.selBox ? overlay.selBox.y : 0
+        width: overlay.selBox ? overlay.selBox.w : 0
+        height: overlay.selBox ? overlay.selBox.h : 0
+
+        Rectangle {
+            anchors.fill: parent
+            color: "transparent"
+            border.color: overlay.vermilion
+            border.width: 1
+            antialiasing: true
+        }
+
+        Repeater {
+            model: [
+                { hx: 0, hy: 0 },
+                { hx: 1, hy: 0 },
+                { hx: 0, hy: 1 },
+                { hx: 1, hy: 1 }
+            ]
+            Rectangle {
+                required property var modelData
+                width: 7; height: 7
+                radius: 1
+                color: overlay.vermilion
+                x: modelData.hx * (annSelection.width - width)
+                y: modelData.hy * (annSelection.height - height)
+            }
         }
     }
 

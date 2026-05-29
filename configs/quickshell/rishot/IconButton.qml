@@ -11,7 +11,7 @@ Rectangle {
     width: 32
     height: 32
     radius: 7
-    color: active ? "#e0563b" : (hover.hovered && !dim ? Qt.rgba(1, 1, 1, 0.06) : "transparent")
+    color: active ? "#e0563b" : (ma.containsMouse && !dim ? Qt.rgba(1, 1, 1, 0.06) : "transparent")
 
     readonly property color idle: "#c4ccda"
 
@@ -22,6 +22,10 @@ Rectangle {
         tint: btn.active ? "#ffffff" : (btn.dim ? Qt.rgba(0.77, 0.80, 0.85, 0.35) : btn.idle)
     }
 
-    HoverHandler { id: hover }
-    TapHandler { onTapped: btn.clicked() }
+    MouseArea {
+        id: ma
+        anchors.fill: parent
+        hoverEnabled: true
+        onClicked: btn.clicked()
+    }
 }

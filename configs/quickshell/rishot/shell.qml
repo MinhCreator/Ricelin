@@ -22,6 +22,10 @@ ShellRoot {
     property bool settingsOpen: false
     property bool textEditing: false
 
+    property var selectedIndex: null
+    property var moveOffset: null
+    property var moveStart: null
+
     function textSize() { return activeWidth * 5 + 8; }
 
     property var overlays: []
@@ -78,6 +82,98 @@ ShellRoot {
         bumpAnn();
     }
 
+    function bboxOf(a) {
+        var xs = a.points.map(function (p) { return p.x; });
+        var ys = a.points.map(function (p) { return p.y; });
+        var x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs);
+        var y0 = Math.min.apply(null, ys), y1 = Math.max.apply(null, ys);
+        if (a.type === "text") {
+            var size = a.size || 16;
+            var w = Math.max((a.text ? a.text.length : 1) * size * 0.6, size);
+            return { x: x0, y: y0, w: w, h: size * 1.4 };
+        }
+        return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+    }
+
+    function distToSeg(px, py, a, b) {
+        var dx = b.x - a.x, dy = b.y - a.y;
+        var len2 = dx * dx + dy * dy;
+        if (len2 === 0) return Math.hypot(px - a.x, py - a.y);
+        var t = ((px - a.x) * dx + (py - a.y) * dy) / len2;
+        t = Math.max(0, Math.min(1, t));
+        return Math.hypot(px - (a.x + t * dx), py - (a.y + t * dy));
+    }
+
+    function inBox(gx, gy, b, pad) {
+        return gx >= b.x - pad && gx <= b.x + b.w + pad
+            && gy >= b.y - pad && gy <= b.y + b.h + pad;
+    }
+
+    function hitOne(a, gx, gy) {
+        var tol = Math.max(a.width || 4, 8);
+        if (a.type === "rect" || a.type === "marker" || a.type === "blur" || a.type === "text")
+            return inBox(gx, gy, bboxOf(a), a.type === "text" ? 0 : tol);
+        if (a.type === "line" || a.type === "arrow")
+            return distToSeg(gx, gy, a.points[0], a.points[1]) <= tol;
+        if (a.type === "pen") {
+            for (var i = 1; i < a.points.length; i++)
+                if (distToSeg(gx, gy, a.points[i - 1], a.points[i]) <= tol) return true;
+            return false;
+        }
+        if (a.type === "ellipse") {
+            var b = bboxOf(a);
+            var rx = b.w / 2 + tol, ry = b.h / 2 + tol;
+            if (rx <= 0 || ry <= 0) return false;
+            var nx = (gx - (b.x + b.w / 2)) / rx, ny = (gy - (b.y + b.h / 2)) / ry;
+            return nx * nx + ny * ny <= 1;
+        }
+        return false;
+    }
+
+    function hitTest(gx, gy) {
+        var its = model.items;
+        for (var i = its.length - 1; i >= 0; i--)
+            if (hitOne(its[i], gx, gy)) return i;
+        return null;
+    }
+
+    function clearSelection() {
+        if (selectedIndex !== null) { selectedIndex = null; bumpAnn(); }
+    }
+
+    function deleteSelected() {
+        if (selectedIndex === null) return;
+        model.remove(selectedIndex);
+        selectedIndex = null;
+        bumpAnn();
+    }
+
+    function beginSelect(gx, gy) {
+        var idx = hitTest(gx, gy);
+        selectedIndex = idx;
+        if (idx !== null) {
+            capturing = true;
+            moveStart = { x: gx, y: gy };
+            moveOffset = { x: 0, y: 0 };
+        }
+        bumpAnn();
+    }
+    function updateSelect(gx, gy) {
+        if (selectedIndex === null || !moveStart) return;
+        moveOffset = { x: gx - moveStart.x, y: gy - moveStart.y };
+        bumpAnn();
+    }
+    function endSelect() {
+        capturing = false;
+        if (selectedIndex !== null && moveOffset
+            && (moveOffset.x !== 0 || moveOffset.y !== 0)) {
+            model.move(selectedIndex, moveOffset.x, moveOffset.y);
+        }
+        moveOffset = null;
+        moveStart = null;
+        bumpAnn();
+    }
+
     function beginDraw(gx, gy) {
         if (!globalSel || activeTool === "select") return;
         if (activeTool === "text") { placeText(gx, gy); return; }
@@ -123,19 +219,22 @@ ShellRoot {
     }
     function bumpAnn() { annRevision += 1; }
 
-    function undo() { if (model.undo()) bumpAnn(); }
-    function redo() { if (model.redo()) bumpAnn(); }
+    function undo() { if (model.undo()) { selectedIndex = null; moveOffset = null; moveStart = null; bumpAnn(); } }
+    function redo() { if (model.redo()) { selectedIndex = null; moveOffset = null; moveStart = null; bumpAnn(); } }
 
     function pointerPressed(gx, gy) {
         if (phase === "selecting") beginSelection(gx, gy);
+        else if (activeTool === "select") beginSelect(gx, gy);
         else beginDraw(gx, gy);
     }
     function pointerMoved(gx, gy) {
         if (phase === "selecting") updateSelection(gx, gy);
+        else if (activeTool === "select") updateSelect(gx, gy);
         else updateDraw(gx, gy);
     }
     function pointerReleased() {
         if (phase === "selecting") endSelection();
+        else if (activeTool === "select") endSelect();
         else endDraw();
     }
 
@@ -261,6 +360,7 @@ ShellRoot {
                 Keys.onEscapePressed: {
                     if (root.textEditing) root.cancelText();
                     else if (root.settingsOpen) root.settingsOpen = false;
+                    else if (root.selectedIndex !== null) root.clearSelection();
                     else Qt.quit();
                 }
                 Keys.onPressed: (e) => {
@@ -268,6 +368,7 @@ ShellRoot {
                     if (e.key === Qt.Key_C && (e.modifiers & Qt.ControlModifier)) { root.doCopy(); e.accepted = true; }
                     else if (e.key === Qt.Key_Z && (e.modifiers & Qt.ControlModifier)) { root.undo(); e.accepted = true; }
                     else if (e.key === Qt.Key_Y && (e.modifiers & Qt.ControlModifier)) { root.redo(); e.accepted = true; }
+                    else if ((e.key === Qt.Key_Delete || e.key === Qt.Key_Backspace) && root.selectedIndex !== null) { root.deleteSelected(); e.accepted = true; }
                 }
 
                 Overlay {
@@ -280,6 +381,8 @@ ShellRoot {
                     draft: root.draft
                     annRevision: root.annRevision
                     textEditing: root.textEditing
+                    selectedIndex: root.selectedIndex
+                    moveOffset: root.moveOffset
 
                     onPressedAt: (gx, gy) => root.pointerPressed(gx, gy)
                     onMovedTo: (gx, gy) => root.pointerMoved(gx, gy)
@@ -295,8 +398,8 @@ ShellRoot {
                     activeTool: root.activeTool
                     activeColor: root.activeColor
                     activeWidth: root.activeWidth
-                    canUndo: root.model ? root.model.canUndo() : false
-                    canRedo: root.model ? root.model.canRedo() : false
+                    canUndo: { root.annRevision; return root.model ? root.model.canUndo() : false; }
+                    canRedo: { root.annRevision; return root.model ? root.model.canRedo() : false; }
                     settingsOpen: root.settingsOpen
 
                     x: {
@@ -311,7 +414,7 @@ ShellRoot {
                         return Math.max(8, below);
                     }
 
-                    onToolPicked: (t) => { if (root.textEditing) root.commitText(); root.activeTool = t; }
+                    onToolPicked: (t) => { if (root.textEditing) root.commitText(); root.clearSelection(); root.activeTool = t; }
                     onColorPicked: (c) => root.activeColor = c
                     onWidthPicked: (w) => root.activeWidth = w
                     onUndoRequested: root.undo()
