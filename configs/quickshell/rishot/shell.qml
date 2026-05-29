@@ -61,7 +61,7 @@ ShellRoot {
     function placeText(gx, gy) {
         if (textEditing) { commitText(); return; }
         var p = clampToSel(gx, gy);
-        draft = { type: "text", points: [p], color: activeColor, text: "", size: textSize() };
+        draft = { type: "text", points: [p], color: String(activeColor), text: "", size: textSize() };
         textEditing = true;
         bumpAnn();
     }
@@ -86,9 +86,9 @@ ShellRoot {
         pressPoint = p;
         capturing = true;
         if (isFreehand(activeTool))
-            draft = { type: activeTool, points: [p], color: activeColor, width: activeWidth };
+            draft = { type: activeTool, points: [p], color: String(activeColor), width: activeWidth };
         else
-            draft = { type: activeTool, points: [p, p], color: activeColor, width: activeWidth, filled: false };
+            draft = { type: activeTool, points: [p, p], color: String(activeColor), width: activeWidth, filled: false };
         bumpAnn();
     }
     function updateDraw(gx, gy) {
