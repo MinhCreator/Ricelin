@@ -55,7 +55,7 @@ eq(bindString(K.P, M.CTRL | M.SHIFT, "p").toUpperCase(), "CTRL + SHIFT + P",
 
 // --- lua file + round-trip parse ---
 const file = luaFile("CTRL + SHIFT + P");
-if (file.includes('hl.bind("CTRL + SHIFT + P", hl.dsp.exec_cmd("qs -c rishot"))'))
+if (file.includes('hl.bind("CTRL + SHIFT + P", hl.dsp.exec_cmd("flock -n /tmp/rishot.lock qs -c rishot"))'))
     console.log("PASS luaFile contains correct bind line");
 else { failed++; console.log("FAIL luaFile bind line\n  got:\n" + file); }
 eq(parseBind(file), "CTRL + SHIFT + P", "parseBind round-trips the written bind");

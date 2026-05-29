@@ -76,8 +76,10 @@ function bindString(key, modifiers, text) {
 }
 
 // The full lua line for rishot.lua given a bind string.
+// flock -n keeps a single instance: pressing the hotkey while rishot is open is a no-op
+// instead of stacking another overlay (Hyprland binds fire over the overlay's keyboard focus).
 function luaLine(bind) {
-    return 'hl.bind("' + bind + '", hl.dsp.exec_cmd("qs -c rishot"))';
+    return 'hl.bind("' + bind + '", hl.dsp.exec_cmd("flock -n /tmp/rishot.lock qs -c rishot"))';
 }
 
 // Whole-file contents for rishot.lua with `bind` as the hotkey.
