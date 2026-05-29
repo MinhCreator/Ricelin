@@ -36,3 +36,6 @@ awww img "$pic" \
     --transition-wave "60,30" \
     --transition-fps 60 \
     --transition-step 90
+
+wallust run "$pic" >/dev/null 2>&1 || true
+hyprctl reload >/dev/null 2>&1 || true
