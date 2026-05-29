@@ -25,3 +25,6 @@ configs/hypr/hyprland.conf
 
 # Brainstorm mockups — local only
 .superpowers/
+
+# Wallpapers — local until final curated 2560x1440 set exists, then un-ignore + commit
+wallpapers/

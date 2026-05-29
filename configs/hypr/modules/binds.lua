@@ -21,3 +21,5 @@ hl.bind("SHIFT + Print",        hl.dsp.exec_cmd(os.getenv("HOME") .. "/.config/h
 hl.bind(mod .. " + SHIFT + C",  hl.dsp.exec_cmd("hyprpicker -a"))
 
 hl.bind(mod .. " + V",          hl.dsp.exec_cmd("sh -c 'cliphist list | rofi -dmenu | cliphist decode | wl-copy'"))
+
+hl.bind(mod .. " + B",          hl.dsp.exec_cmd(os.getenv("HOME") .. "/.config/hypr/scripts/wallpaper.sh"))
