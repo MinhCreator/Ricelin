@@ -55,8 +55,7 @@ ShellRoot {
         var y = Math.max(globalSel.y, Math.min(gy, globalSel.y + globalSel.h));
         return { x: x, y: y };
     }
-    readonly property var freehandTools: ["pen", "marker"]
-    function isFreehand(t) { return t === "pen" || t === "marker"; }
+    function isFreehand(t) { return t === "pen"; }
 
     function placeText(gx, gy) {
         if (textEditing) { commitText(); return; }
@@ -87,6 +86,8 @@ ShellRoot {
         capturing = true;
         if (isFreehand(activeTool))
             draft = { type: activeTool, points: [p], color: String(activeColor), width: activeWidth };
+        else if (activeTool === "marker")
+            draft = { type: "marker", points: [p, p], color: "#f5d020", width: activeWidth, filled: true };
         else
             draft = { type: activeTool, points: [p, p], color: String(activeColor), width: activeWidth, filled: false };
         bumpAnn();

@@ -85,13 +85,27 @@ Item {
                 antialiasing: true
             }
 
+            Rectangle {
+                visible: cell.valid && cell.kind === "marker"
+                x: cell.valid ? Math.min(cell.a.points[0].x, cell.a.points[1].x) - canvas.sx : 0
+                y: cell.valid ? Math.min(cell.a.points[0].y, cell.a.points[1].y) - canvas.sy : 0
+                width: cell.valid ? Math.abs(cell.a.points[1].x - cell.a.points[0].x) : 0
+                height: cell.valid ? Math.abs(cell.a.points[1].y - cell.a.points[0].y) : 0
+                color: {
+                    if (!cell.valid) return "transparent";
+                    var c = Qt.color(cell.a.color);
+                    return Qt.rgba(c.r, c.g, c.b, 0.4);
+                }
+                antialiasing: true
+            }
+
             Shape {
                 id: polyShape
                 anchors.fill: parent
                 antialiasing: true
                 preferredRendererType: Shape.CurveRenderer
                 visible: cell.valid && (cell.kind === "line" || cell.kind === "arrow"
-                    || cell.kind === "pen" || cell.kind === "marker")
+                    || cell.kind === "pen")
 
                 ShapePath {
                     strokeColor: cell.valid ? canvas.strokeColorOf(cell.a) : "transparent"
@@ -104,7 +118,7 @@ Item {
                     PathPolyline {
                         path: {
                             if (!cell.valid) return [];
-                            if (cell.kind === "pen" || cell.kind === "marker") return canvas.polyPath(cell.a);
+                            if (cell.kind === "pen") return canvas.polyPath(cell.a);
                             return [canvas.lp(cell.a, 0), canvas.lp(cell.a, 1)];
                         }
                     }
