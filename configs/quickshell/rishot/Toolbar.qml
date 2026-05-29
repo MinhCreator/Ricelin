@@ -1,6 +1,7 @@
 // rishot — Vermilion glass toolbar shown under the selection. Tool row (Rect implemented,
-// rest inert placeholders flagged `implemented:false`), undo/redo, copy, save (inline path
-// field), and a far-right gear (inert in 2a, Phase 2b hook). Emits intent signals only.
+// rest inert placeholders flagged `implemented:false`), undo/redo, copy, save (native dialog),
+// and a far-right gear that toggles a floating hotkey popover (rendered by shell.qml above the
+// gear — the toolbar itself never widens). Emits intent signals only.
 import QtQuick
 import QtQuick.Layouts
 
@@ -12,17 +13,17 @@ Item {
     property string activeTool: "rect"
     property bool canUndo: false
     property bool canRedo: false
-    property string savePath: ""
-    property bool saving: false       // inline path field revealed
-    property bool settingsOpen: false // gear-expanded settings panel revealed
-    property string luaPath: ""       // abs path to rishot.lua (passed to the panel)
+    property bool settingsOpen: false // floating hotkey popover revealed (placed by shell.qml)
+
+    // gear center in tb-local coords, so shell.qml can anchor the popover above it
+    readonly property real gearCenterX: gear.x + row.x + gear.width / 2
 
     signal toolPicked(string tool)
     signal undoRequested()
     signal redoRequested()
     signal copyRequested()
-    signal saveRequested(string path)
-    signal settingsRequested()        // gear hook
+    signal saveRequested()            // -> shell.qml opens a native save dialog
+    signal settingsRequested()        // gear toggle hook
 
     readonly property color glassBg: Qt.rgba(20 / 255, 24 / 255, 34 / 255, 0.92)
     readonly property color glassBorder: "#313a4d"
@@ -76,62 +77,17 @@ Item {
             Rectangle { Layout.preferredWidth: 1; Layout.preferredHeight: 20; color: tb.sep; Layout.leftMargin: 3; Layout.rightMargin: 3 }
 
             IconButton { label: "⧉"; onClicked: tb.copyRequested() }
-            IconButton { label: "▤"; onClicked: tb.saving = true }
-
-            // Inline editable save-path field, revealed by the Save button.
-            Rectangle {
-                visible: tb.saving
-                Layout.preferredWidth: 320
-                Layout.preferredHeight: 28
-                radius: 6
-                color: Qt.rgba(1, 1, 1, 0.06)
-                border.color: tb.glassBorder
-                border.width: 1
-                TextInput {
-                    id: pathField
-                    anchors.fill: parent
-                    anchors.leftMargin: 8
-                    anchors.rightMargin: 8
-                    verticalAlignment: TextInput.AlignVCenter
-                    color: "#e8ecf4"
-                    font.family: "JetBrains Mono"
-                    font.pixelSize: 13
-                    clip: true
-                    text: tb.savePath
-                    focus: tb.saving
-                    onAccepted: tb.saveRequested(text)
-                }
-            }
+            IconButton { label: "▤"; onClicked: tb.saveRequested() }
 
             Rectangle { Layout.preferredWidth: 1; Layout.preferredHeight: 20; color: tb.sep; Layout.leftMargin: 3; Layout.rightMargin: 3 }
 
-            // Gear, far right. Toggles the inline settings panel (expands toolbar to the right).
+            // Gear, far right. Toggles the floating hotkey popover (placed above by shell.qml).
             IconButton {
+                id: gear
                 label: "⚙"
                 active: tb.settingsOpen
                 onClicked: { tb.settingsOpen = !tb.settingsOpen; tb.settingsRequested(); }
             }
-
-            // Inline settings panel — width animates open/closed for a subtle expansion.
-            Item {
-                id: settingsWrap
-                Layout.preferredHeight: 28
-                Layout.preferredWidth: tb.settingsOpen ? settings.implicitWidth : 0
-                clip: true
-                Behavior on Layout.preferredWidth {
-                    NumberAnimation { duration: 160; easing.type: Easing.OutCubic }
-                }
-
-                SettingsPanel {
-                    id: settings
-                    anchors.verticalCenter: parent.verticalCenter
-                    height: 28
-                    luaPath: tb.luaPath
-                    visible: tb.settingsOpen || settingsWrap.width > 0
-                }
-            }
         }
     }
-
-    onSavingChanged: if (saving) pathField.forceActiveFocus()
 }

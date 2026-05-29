@@ -1,7 +1,6 @@
-// rishot — inline settings panel revealed when the toolbar gear expands. Shows the current
-// screenshot hotkey (parsed from rishot.lua) and a Record button. Record -> listens for the next
-// key chord -> maps it to a Hyprland keyname (lib/keymap.js) -> rewrites rishot.lua -> hyprctl reload
-// -> updates the label live. Matches the Vermilion glass aesthetic; vermilion accent while listening.
+// rishot — minimal hotkey popover floated above the toolbar gear. Content is only the current
+// hotkey + a Record button. Record -> listens for the next key chord -> maps to a Hyprland keyname
+// (lib/keymap.js) -> rewrites rishot.lua -> hyprctl reload -> updates the label live. Vermilion glass.
 import QtQuick
 import QtQuick.Layouts
 import Quickshell.Io
@@ -13,12 +12,16 @@ Item {
     property string hotkey: "—"          // current bind string, parsed from the file
     property bool listening: false       // true while waiting for a key chord
 
-    readonly property color glassBorder: "#313a4d"
+    signal closeRequested()              // Esc while not listening -> close popover
+
+    readonly property color glassBg: Qt.rgba(24 / 255, 28 / 255, 38 / 255, 0.97)
+    readonly property color glassBorder: "#3a4456"
     readonly property color vermilion: "#e0563b"
     readonly property color idle: "#c4ccda"
 
-    implicitWidth: content.implicitWidth + 16
-    implicitHeight: content.implicitHeight
+    readonly property int arrow: 7
+    implicitWidth: card.implicitWidth
+    implicitHeight: card.implicitHeight + arrow
 
     // ---- read current hotkey on load ----
     FileView {
@@ -49,57 +52,91 @@ Item {
         writer.setText(Keymap.luaFile(bind));
     }
 
-    RowLayout {
-        id: content
-        anchors.verticalCenter: parent.verticalCenter
-        x: 8
-        spacing: 10
+    Rectangle {
+        id: card
+        width: parent.width
+        height: parent.height - panel.arrow
+        radius: 10
+        color: panel.glassBg
+        border.color: panel.glassBorder
+        border.width: 1
+        implicitWidth: content.implicitWidth + 20
+        implicitHeight: 44
 
-        Text {
-            text: "Hotkey: " + panel.hotkey
-            color: panel.idle
-            font.family: "JetBrains Mono"
-            font.pixelSize: 13
-            verticalAlignment: Text.AlignVCenter
-        }
-
-        Rectangle {
-            id: recBtn
-            Layout.preferredHeight: 28
-            Layout.preferredWidth: recLabel.implicitWidth + 24
-            radius: 6
-            color: panel.listening ? panel.vermilion
-                : (recHover.hovered ? Qt.rgba(1, 1, 1, 0.10) : Qt.rgba(1, 1, 1, 0.06))
-            border.color: panel.listening ? panel.vermilion : panel.glassBorder
-            border.width: 1
+        RowLayout {
+            id: content
+            anchors.centerIn: parent
+            spacing: 10
 
             Text {
-                id: recLabel
-                anchors.centerIn: parent
-                text: panel.listening ? "Press a key…" : "Record"
-                color: panel.listening ? "#ffffff" : panel.idle
+                text: panel.hotkey
+                color: panel.idle
                 font.family: "JetBrains Mono"
                 font.pixelSize: 13
+                verticalAlignment: Text.AlignVCenter
             }
 
-            HoverHandler { id: recHover }
-            TapHandler {
-                onTapped: {
-                    panel.listening = !panel.listening;
-                    if (panel.listening) keyCatcher.forceActiveFocus();
+            Rectangle {
+                id: recBtn
+                Layout.preferredHeight: 28
+                Layout.preferredWidth: recLabel.implicitWidth + 24
+                radius: 6
+                color: panel.listening ? panel.vermilion
+                    : (recHover.hovered ? Qt.rgba(1, 1, 1, 0.10) : Qt.rgba(1, 1, 1, 0.06))
+                border.color: panel.listening ? panel.vermilion : panel.glassBorder
+                border.width: 1
+
+                Text {
+                    id: recLabel
+                    anchors.centerIn: parent
+                    text: panel.listening ? "Press a key…" : "Record"
+                    color: panel.listening ? "#ffffff" : panel.idle
+                    font.family: "JetBrains Mono"
+                    font.pixelSize: 13
+                }
+
+                HoverHandler { id: recHover }
+                TapHandler {
+                    onTapped: {
+                        panel.listening = !panel.listening;
+                        if (panel.listening) keyCatcher.forceActiveFocus();
+                    }
                 }
             }
         }
     }
 
-    // Focused key sink, active only while listening. Captures the next complete chord.
+    // Subtle downward arrow pointing at the gear.
+    Canvas {
+        width: panel.arrow * 2
+        height: panel.arrow
+        anchors.top: card.bottom
+        anchors.horizontalCenter: card.horizontalCenter
+        onPaint: {
+            var ctx = getContext("2d");
+            ctx.reset();
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(width, 0);
+            ctx.lineTo(width / 2, height);
+            ctx.closePath();
+            ctx.fillStyle = Qt.rgba(24 / 255, 28 / 255, 38 / 255, 0.97);
+            ctx.fill();
+        }
+    }
+
+    // Focused key sink, active only while open. Captures the next complete chord; Esc closes.
     Item {
         id: keyCatcher
-        focus: panel.listening
+        focus: panel.visible
         Keys.onPressed: (e) => {
-            if (!panel.listening) return;
             e.accepted = true;
-            if (e.key === Qt.Key_Escape) { panel.listening = false; return; }
+            if (e.key === Qt.Key_Escape) {
+                if (panel.listening) panel.listening = false;
+                else panel.closeRequested();
+                return;
+            }
+            if (!panel.listening) return;
             var bind = Keymap.bindString(e.key, e.modifiers, e.text);
             if (bind !== null) panel.applyBind(bind);   // else: bare modifier, keep listening
         }

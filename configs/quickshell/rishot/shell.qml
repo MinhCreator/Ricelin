@@ -24,6 +24,7 @@ ShellRoot {
     property var model: Ann.create()
     property var draft: null           // in-progress annotation | null
     property int annRevision: 0
+    property bool settingsOpen: false  // hotkey popover visibility (single, on the anchor overlay)
 
     property var overlays: []
     property int frozenCount: 0
@@ -149,16 +150,31 @@ ShellRoot {
         });
     }
 
-    // Save action: auto-save to default, then ALSO write the chosen path, then quit.
-    function doSave(chosen) {
+    // Save action: open a native save dialog (kdialog). On accept -> auto-save to default + write
+    // the chosen path + quit. On cancel -> keep rishot open (no auto-save, no quit).
+    function doSave() { saveDialog.open(); }
+
+    function commitSave(chosen) {
         var auto = defaultPath;
         grabTo(auto, function (ok) {
-            if (chosen && chosen !== auto) {
-                grabTo(chosen, function () { Qt.quit(); });
-            } else {
-                Qt.quit();
-            }
+            if (chosen && chosen !== auto) grabTo(chosen, function () { Qt.quit(); });
+            else Qt.quit();
         });
+    }
+
+    // Native save dialog. kdialog prints the chosen path to stdout + exits 0; cancel = non-zero/empty.
+    Process {
+        id: saveDialog
+        stdout: StdioCollector { id: saveOut }
+        function open() {
+            command = ["kdialog", "--getsavefilename", root.defaultPath, "*.png"];
+            running = true;
+        }
+        onExited: (code) => {
+            var chosen = saveOut.text.trim();
+            console.log("rishot: kdialog exit " + code + " path=" + JSON.stringify(chosen));
+            if (code === 0 && chosen.length > 0) root.commitSave(chosen);
+        }
     }
 
     Process {
@@ -211,7 +227,8 @@ ShellRoot {
                 anchors.fill: parent
                 focus: true
 
-                Keys.onEscapePressed: Qt.quit()
+                // Esc closes the hotkey popover if open; otherwise cancels rishot.
+                Keys.onEscapePressed: { if (root.settingsOpen) root.settingsOpen = false; else Qt.quit(); }
                 Keys.onPressed: (e) => {
                     if (e.key === Qt.Key_C && (e.modifiers & Qt.ControlModifier)) { root.doCopy(); e.accepted = true; }
                     else if (e.key === Qt.Key_Z && (e.modifiers & Qt.ControlModifier)) { root.undo(); e.accepted = true; }
@@ -240,8 +257,7 @@ ShellRoot {
                     activeTool: root.activeTool
                     canUndo: root.model ? root.model.canUndo() : false
                     canRedo: root.model ? root.model.canRedo() : false
-                    savePath: root.defaultPath
-                    luaPath: root.rishotLuaPath
+                    settingsOpen: root.settingsOpen
 
                     // place centered under the selection, clamped to the screen
                     x: {
@@ -260,8 +276,19 @@ ShellRoot {
                     onUndoRequested: root.undo()
                     onRedoRequested: root.redo()
                     onCopyRequested: root.doCopy()
-                    onSaveRequested: (p) => root.doSave(p)
-                    onSettingsRequested: console.log("rishot: settings panel toggled")
+                    onSaveRequested: root.doSave()
+                    onSettingsRequested: root.settingsOpen = toolbar.settingsOpen
+                }
+
+                // Hotkey popover, floated just ABOVE the gear (toolbar never widens).
+                SettingsPanel {
+                    id: hotkeyPopover
+                    visible: toolbar.visible && root.settingsOpen
+                    luaPath: root.rishotLuaPath
+                    x: Math.max(8, Math.min(toolbar.x + toolbar.gearCenterX - width / 2,
+                                            win.width - width - 8))
+                    y: toolbar.y - height - 6
+                    onCloseRequested: root.settingsOpen = false
                 }
             }
 
