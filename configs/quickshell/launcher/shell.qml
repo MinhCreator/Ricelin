@@ -10,10 +10,18 @@ ShellRoot {
 
     property string query: ""
     property var usage: ({})
+    property bool shown: false
 
     readonly property var focusedScreen: {
         var m = Hyprland.focusedMonitor;
-        return m ? m.screen : Quickshell.screens[0];
+        return m && m.screen ? m.screen : Quickshell.screens[0];
+    }
+
+    IpcHandler {
+        target: "launcher"
+        function toggle(): void { root.shown = !root.shown; }
+        function show(): void { root.shown = true; }
+        function hide(): void { root.shown = false; }
     }
 
     FileView {
@@ -53,11 +61,12 @@ ShellRoot {
             }
             entry.execute();
         }
-        Qt.quit();
+        root.shown = false;
     }
 
     PanelWindow {
         id: win
+        visible: root.shown
         screen: root.focusedScreen
         color: "transparent"
         exclusionMode: ExclusionMode.Ignore
@@ -69,7 +78,7 @@ ShellRoot {
 
         MouseArea {
             anchors.fill: parent
-            onClicked: Qt.quit()
+            onClicked: root.shown = false
         }
 
         Launcher {
@@ -80,7 +89,7 @@ ShellRoot {
             total: root.totalCount
 
             onLaunch: (entry) => root.run(entry)
-            onQuit: Qt.quit()
+            onQuit: root.shown = false
         }
 
         Connections {
@@ -91,6 +100,12 @@ ShellRoot {
             }
         }
 
-        Component.onCompleted: launcher.focusField()
+        onVisibleChanged: {
+            if (visible) {
+                launcher.query = "";
+                launcher.selectedIndex = 0;
+                launcher.focusField();
+            }
+        }
     }
 }
