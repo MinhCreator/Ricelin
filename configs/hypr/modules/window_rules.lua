@@ -34,3 +34,9 @@ hl.window_rule({
     match = { class = "Ghosttype-app" },
     float = true,
 })
+
+hl.window_rule({
+    name  = "float-spotify",
+    match = { class = "[Ss]potify" },
+    float = true,
+})
