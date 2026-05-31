@@ -28,3 +28,9 @@ hl.window_rule({
     match = { title = "(Open File|Save File|Save As|Choose Files|Open Folder)" },
     float = true,
 })
+
+hl.window_rule({
+    name  = "float-ghosttype",
+    match = { class = "Ghosttype-app" },
+    float = true,
+})

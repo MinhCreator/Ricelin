@@ -23,6 +23,10 @@ configs/partition-day-sequence.md
 # Hyprland auto-generates this stub if no .conf found — never track
 configs/hypr/hyprland.conf
 
+# GhostType app-managed hotkey snippets (machine-specific exec path) — never track
+configs/hypr/ghosttype.conf
+configs/hypr/ghosttype.lua
+
 # Local-only hypr binds (machine-specific scripts, not for public rice)
 configs/hypr/modules/private.lua
 
