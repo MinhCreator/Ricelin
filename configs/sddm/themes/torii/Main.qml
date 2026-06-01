@@ -5,8 +5,8 @@ import QtMultimedia
 
 Item {
     id: root
-    width: 1920
-    height: 1080
+
+    property rect pg: Qt.rect(0, 0, Screen.width, Screen.height)
 
     readonly property bool hasSddm: typeof sddm !== "undefined"
     readonly property bool hasConfig: typeof config !== "undefined"
@@ -19,7 +19,7 @@ Item {
     }
 
     readonly property real userScale: parseFloat(cfg("scale", "1.0")) || 1.0
-    readonly property real s: (Screen.height > 0 ? Screen.height / 1080 : 1) * userScale
+    readonly property real s: (root.pg.height > 0 ? root.pg.height / 1080 : 1) * userScale
 
     readonly property color verm: cfg("accent", "#c0442b")
     readonly property color vermDeep: "#a3371f"
@@ -118,11 +118,37 @@ Item {
         }
     }
 
+    MouseArea {
+        anchors.fill: parent
+        z: -5000
+        acceptedButtons: Qt.NoButton
+        hoverEnabled: true
+        cursorShape: Qt.ArrowCursor
+    }
+
+    Repeater {
+        model: (typeof screenModel !== "undefined") ? screenModel : 0
+        delegate: Item {
+            Component.onCompleted: {
+                if (index === ((typeof primaryScreen !== "undefined") ? primaryScreen : 0))
+                    root.pg = Qt.rect(geometry.x, geometry.y, geometry.width, geometry.height)
+            }
+        }
+    }
+
     Rectangle {
         anchors.fill: parent
         color: root.emberBase
         z: -2000
     }
+
+    Item {
+        id: stage
+        x: root.pg.x
+        y: root.pg.y
+        width: root.pg.width
+        height: root.pg.height
+        clip: true
 
     MediaPlayer {
         id: bgPlayer
@@ -154,7 +180,7 @@ Item {
         anchors.fill: parent
         z: 5
         Repeater {
-            model: 18
+            model: 10
             delegate: Rectangle {
                 id: ember
                 required property int index
@@ -209,7 +235,7 @@ Item {
         anchors.fill: parent
         z: 4
         Repeater {
-            model: 14
+            model: 8
             delegate: Rectangle {
                 id: petal
                 required property int index
@@ -306,8 +332,6 @@ Item {
             font.pixelSize: 52 * root.s
             font.letterSpacing: 1 * root.s
             text: clockTimer.timeText
-            style: Text.Raised
-            styleColor: Qt.rgba(0, 0, 0, 0.92)
         }
 
         Text {
@@ -321,8 +345,6 @@ Item {
             font.letterSpacing: 3.5 * root.s
             font.capitalization: Font.AllUppercase
             text: clockTimer.dateText
-            style: Text.Raised
-            styleColor: Qt.rgba(0, 0, 0, 0.92)
         }
     }
 
@@ -435,8 +457,6 @@ Item {
                 font.weight: 600
                 font.pixelSize: 16 * root.s
                 font.letterSpacing: 0.3 * root.s
-                style: Text.Raised
-                styleColor: Qt.rgba(0, 0, 0, 0.9)
             }
 
             Text {
@@ -872,6 +892,8 @@ Item {
             userPopup.close()
             sessionPopup.close()
         }
+    }
+
     }
 
     Connections {
