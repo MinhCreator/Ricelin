@@ -34,11 +34,27 @@ Item {
 
         MouseArea { anchors.fill: parent }
 
-        Column {
+        Flickable {
             id: stack
             anchors.fill: parent
             anchors.margins: 14 * sidebar.s
-            spacing: 12 * sidebar.s
+            contentHeight: inner.implicitHeight
+            boundsBehavior: Flickable.StopAtBounds
+            clip: true
+
+            Column {
+                id: inner
+                width: stack.width
+                spacing: 12 * sidebar.s
+
+                Header { s: sidebar.s; width: parent.width }
+                QuickStrip { s: sidebar.s; width: parent.width }
+                Network { s: sidebar.s; width: parent.width }
+                Bluetooth { s: sidebar.s; width: parent.width }
+                Audio { s: sidebar.s; width: parent.width }
+                Display { s: sidebar.s; width: parent.width }
+                Media { s: sidebar.s; width: parent.width }
+            }
         }
     }
 }

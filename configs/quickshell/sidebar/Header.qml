@@ -1,0 +1,128 @@
+import QtQuick
+import QtQuick.Effects
+import "Singletons"
+
+Rectangle {
+    id: root
+    property real s: 1
+    property bool opened: false
+
+    radius: 16 * s
+    color: "transparent"
+    border.width: 1
+    border.color: Theme.border
+    implicitHeight: 38 * s + 26 * s
+    gradient: Gradient {
+        GradientStop { position: 0.0; color: Theme.panelTop }
+        GradientStop { position: 1.0; color: Theme.panelBot }
+    }
+    Rectangle {
+        anchors { left: parent.left; right: parent.right; top: parent.top }
+        anchors.margins: 1
+        height: 1; radius: 16 * root.s
+        color: Theme.sheen
+    }
+
+    Row {
+        anchors.fill: parent
+        anchors.margins: 13 * root.s
+        spacing: 12 * root.s
+
+        Rectangle {
+            id: mark
+            width: 38 * root.s; height: 38 * root.s; radius: 12 * root.s
+            anchors.verticalCenter: parent.verticalCenter
+            border.width: 1
+            border.color: Theme.vermLit
+            gradient: Gradient {
+                GradientStop { position: 0.0; color: Theme.verm }
+                GradientStop { position: 1.0; color: Theme.vermDeep }
+            }
+            Image {
+                id: markGlyph
+                anchors.centerIn: parent
+                width: 20 * root.s; height: 20 * root.s
+                source: Qt.resolvedUrl("assets/icons/torii.svg")
+                sourceSize.width: 64; sourceSize.height: 64
+                fillMode: Image.PreserveAspectFit
+                smooth: true; mipmap: true; visible: false
+            }
+            MultiEffect {
+                anchors.fill: markGlyph
+                source: markGlyph
+                colorization: 1.0
+                colorizationColor: "#f3e7df"
+            }
+        }
+
+        Column {
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: 2 * root.s
+            Text {
+                text: "Good Evening"
+                color: Theme.cream
+                font.family: Theme.font
+                font.pixelSize: 15 * root.s
+                font.weight: Font.DemiBold
+            }
+            Text {
+                text: "ricelin · torii"
+                color: Theme.dim
+                font.family: Theme.font
+                font.pixelSize: 11 * root.s
+                font.weight: Font.Medium
+            }
+        }
+    }
+
+    Rectangle {
+        id: uppill
+        anchors.verticalCenter: parent.verticalCenter
+        anchors.right: parent.right
+        anchors.rightMargin: 13 * root.s
+        radius: 999
+        color: Theme.tileBg
+        border.width: 1
+        border.color: Theme.border
+        implicitHeight: 24 * root.s
+        width: pillRow.implicitWidth + 22 * root.s
+        height: implicitHeight
+
+        Row {
+            id: pillRow
+            anchors.centerIn: parent
+            spacing: 6 * root.s
+
+            Rectangle {
+                anchors.verticalCenter: parent.verticalCenter
+                width: 11 * root.s; height: 11 * root.s; radius: width / 2
+                color: "transparent"
+                border.width: 1.5 * root.s
+                border.color: Theme.vermLit
+                Rectangle {
+                    anchors.centerIn: parent
+                    width: 1.5 * root.s; height: 4 * root.s
+                    color: Theme.vermLit
+                }
+            }
+            Row {
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 4 * root.s
+                Text {
+                    text: "up"
+                    color: Theme.dim
+                    font.family: Theme.font
+                    font.pixelSize: 11 * root.s
+                    font.weight: Font.Medium
+                }
+                Text {
+                    text: "3d 14h 22m"
+                    color: Theme.cream
+                    font.family: Theme.font
+                    font.pixelSize: 11 * root.s
+                    font.weight: Font.DemiBold
+                }
+            }
+        }
+    }
+}
