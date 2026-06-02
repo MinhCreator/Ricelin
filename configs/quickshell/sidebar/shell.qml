@@ -63,6 +63,8 @@ ShellRoot {
             id: win
             required property var modelData
             readonly property real s: modelData ? Math.min(modelData.height / 1080, 1.0) : 1
+            readonly property real screenScale: modelData ? modelData.height / 1080 : 1
+            readonly property real barBottom: 42 * screenScale
 
             screen: modelData
             visible: root.shown && (root.targetMonitor === "" || root.targetMonitor === modelData.name)
@@ -86,7 +88,9 @@ ShellRoot {
                 anchors.right: parent.right
                 anchors.top: parent.top
                 anchors.bottom: parent.bottom
-                anchors.margins: 10 * win.s
+                anchors.topMargin: win.barBottom + 12 * win.screenScale
+                anchors.rightMargin: 12 * win.screenScale
+                anchors.bottomMargin: 12 * win.screenScale
                 opened: win.visible
                 onRequestClose: root.shown = false
             }
