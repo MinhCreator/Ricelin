@@ -530,7 +530,7 @@ Item {
         Rectangle {
             id: pill
             anchors.horizontalCenter: parent.horizontalCenter
-            width: Math.max(320 * root.s, pillRow.implicitWidth + 30 * root.s)
+            width: 360 * root.s
             height: 55 * root.s
             radius: height / 2
             color: Qt.rgba(18 / 255, 11 / 255, 8 / 255, 0.5)
