@@ -1,25 +1,78 @@
 import QtQuick
 import QtQuick.Effects
 import Quickshell
+import Quickshell.Services.Mpris
 import "Singletons"
 
 Item {
     id: content
     property real s: 1
+    property color accent: Theme.accent
 
     readonly property var deLocale: Qt.locale("de_DE")
+
+    readonly property var player: {
+        var list = Mpris.players.values;
+        if (!list || list.length === 0)
+            return null;
+        var controllable = null;
+        for (var i = 0; i < list.length; i++) {
+            var p = list[i];
+            if (!p)
+                continue;
+            if (p.isPlaying)
+                return p;
+            if (!controllable && p.canControl)
+                controllable = p;
+        }
+        return controllable ? controllable : list[0];
+    }
+
+    readonly property bool hasPlayer: player !== null
+    readonly property bool playing: hasPlayer && player.isPlaying
+
+    readonly property string trackTitle: {
+        if (!player)
+            return "";
+        return player.trackTitle ? player.trackTitle : "";
+    }
+    readonly property string trackArtist: {
+        if (!player)
+            return "";
+        if (player.trackArtists && player.trackArtists.length > 0)
+            return player.trackArtists;
+        return player.trackArtist ? player.trackArtist : "";
+    }
+    readonly property string artUrl: {
+        if (!player)
+            return "";
+        return player.trackArtUrl ? player.trackArtUrl : "";
+    }
+    readonly property real lengthSec: hasPlayer && player.length > 0 ? player.length : 0
+    readonly property real positionSec: hasPlayer ? player.position : 0
+    readonly property real progress: lengthSec > 0 ? Math.max(0, Math.min(1, positionSec / lengthSec)) : 0
 
     SystemClock {
         id: sysClock
         precision: SystemClock.Seconds
     }
 
+    Timer {
+        interval: 1000
+        running: content.playing
+        repeat: true
+        onTriggered: if (content.player) content.player.positionChanged()
+    }
+
     component TransportButton: Item {
         property string icon: ""
         property real box: 18
+        property bool enabledAction: true
         property bool hovered: tArea.containsMouse
+        signal triggered()
         width: box * content.s
         height: box * content.s
+        opacity: enabledAction ? 1 : 0.35
 
         Image {
             id: tImg
@@ -36,14 +89,15 @@ Item {
             anchors.fill: tImg
             source: tImg
             colorization: 1.0
-            colorizationColor: parent.hovered ? Theme.accent : Theme.cream
+            colorizationColor: parent.hovered && parent.enabledAction ? content.accent : Theme.cream
         }
         MouseArea {
             id: tArea
             anchors.fill: parent
             hoverEnabled: true
+            enabled: parent.enabledAction
             cursorShape: Qt.PointingHandCursor
-            onClicked: console.log("transport: " + parent.icon)
+            onClicked: parent.triggered()
         }
     }
 
@@ -66,7 +120,7 @@ Item {
             text: {
                 var hh = Qt.formatDateTime(sysClock.date, "HH");
                 var mm = Qt.formatDateTime(sysClock.date, "mm");
-                return hh + "<font color=\"" + Theme.accent + "\">:</font>" + mm;
+                return hh + "<font color=\"" + content.accent + "\">:</font>" + mm;
             }
         }
 
@@ -84,6 +138,7 @@ Item {
 
     Row {
         id: nowPlaying
+        visible: content.hasPlayer
         anchors.left: parent.left
         anchors.bottom: parent.bottom
         anchors.leftMargin: 30 * content.s
@@ -96,17 +151,44 @@ Item {
             height: 54 * content.s
             radius: 10 * content.s
             anchors.verticalCenter: parent.verticalCenter
+            clip: true
             gradient: Gradient {
-                GradientStop { position: 0.0; color: Theme.accent }
+                GradientStop { position: 0.0; color: content.accent }
                 GradientStop { position: 1.0; color: "#180d09" }
             }
             layer.enabled: true
             layer.effect: MultiEffect {
                 shadowEnabled: true
-                shadowColor: Theme.accent
+                shadowColor: content.accent
                 shadowBlur: 0.6
                 shadowVerticalOffset: 0
                 shadowHorizontalOffset: 0
+            }
+            Image {
+                id: coverImg
+                anchors.fill: parent
+                visible: content.artUrl.length > 0
+                source: content.artUrl
+                fillMode: Image.PreserveAspectCrop
+                smooth: true
+                mipmap: true
+                cache: false
+                asynchronous: true
+                layer.enabled: true
+                layer.effect: MultiEffect {
+                    maskEnabled: true
+                    maskSource: coverMask
+                }
+            }
+            Item {
+                id: coverMask
+                anchors.fill: parent
+                layer.enabled: true
+                visible: false
+                Rectangle {
+                    anchors.fill: parent
+                    radius: 10 * content.s
+                }
             }
         }
 
@@ -116,7 +198,7 @@ Item {
 
             Text {
                 text: "NOW PLAYING"
-                color: Theme.accent
+                color: content.accent
                 font.family: Theme.font
                 font.pixelSize: 9 * content.s
                 font.weight: Font.Bold
@@ -124,19 +206,24 @@ Item {
                 font.letterSpacing: 2 * content.s
             }
             Text {
-                text: "水槽の中の脳"
+                text: content.trackTitle.length > 0 ? content.trackTitle : "Unknown"
                 color: Theme.text
                 font.family: Theme.font
                 font.pixelSize: 15 * content.s
                 font.weight: Font.DemiBold
+                elide: Text.ElideRight
+                width: 200 * content.s
             }
             Text {
-                text: "MIMiNARI"
+                visible: content.trackArtist.length > 0
+                text: content.trackArtist
                 color: Theme.textDim
                 font.family: Theme.font
                 font.pixelSize: 12 * content.s
                 font.weight: Font.Medium
                 bottomPadding: 4 * content.s
+                elide: Text.ElideRight
+                width: 200 * content.s
             }
             Rectangle {
                 width: 200 * content.s
@@ -144,10 +231,10 @@ Item {
                 radius: 99
                 color: Theme.trackBg
                 Rectangle {
-                    width: parent.width * 0.46
+                    width: parent.width * content.progress
                     height: parent.height
                     radius: 99
-                    color: Theme.accent
+                    color: content.accent
                 }
             }
             Row {
@@ -157,17 +244,23 @@ Item {
                 TransportButton {
                     icon: "prev"
                     box: 18
+                    enabledAction: content.hasPlayer && content.player.canGoPrevious
                     anchors.verticalCenter: parent.verticalCenter
+                    onTriggered: if (content.player && content.player.canGoPrevious) content.player.previous()
                 }
                 TransportButton {
-                    icon: "pause"
+                    icon: content.playing ? "pause" : "play"
                     box: 18
+                    enabledAction: content.hasPlayer && content.player.canTogglePlaying
                     anchors.verticalCenter: parent.verticalCenter
+                    onTriggered: if (content.player && content.player.canTogglePlaying) content.player.togglePlaying()
                 }
                 TransportButton {
                     icon: "next"
                     box: 18
+                    enabledAction: content.hasPlayer && content.player.canGoNext
                     anchors.verticalCenter: parent.verticalCenter
+                    onTriggered: if (content.player && content.player.canGoNext) content.player.next()
                 }
             }
         }
@@ -183,7 +276,7 @@ Item {
         radius: 14 * content.s
         color: Theme.fieldBg
         border.width: 1
-        border.color: input.activeFocus ? Theme.accent : Theme.fieldBorder
+        border.color: input.activeFocus ? content.accent : Theme.fieldBorder
 
         TextInput {
             id: input

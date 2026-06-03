@@ -62,16 +62,23 @@ Item {
         live: true
     }
 
+    AlbumPalette {
+        id: palette
+        artUrl: content.artUrl
+    }
+
     ShaderEffect {
         anchors.fill: parent
         property var source: blurVSrc
-        property color accent: Theme.accent
+        property color accent: palette.accent
         property real intensity: Theme.gradeIntensity
         fragmentShader: "shaders/grade.frag.qsb"
     }
 
     Content {
+        id: content
         anchors.fill: parent
         s: surface.s
+        accent: palette.accent
     }
 }
