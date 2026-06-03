@@ -1,31 +1,38 @@
 import QtQuick
 import Quickshell
+import Quickshell.Io
 import Quickshell.Wayland
 
 ShellRoot {
     id: root
 
-    Variants {
-        model: Quickshell.screens
+    readonly property string currentUser: Quickshell.env("USER") || Quickshell.env("LOGNAME") || ""
 
-        PanelWindow {
-            id: win
-            required property var modelData
-            readonly property real s: modelData ? modelData.height / 1080 : 1
+    Auth {
+        id: auth
+        user: root.currentUser
+        onSucceeded: sessionLock.locked = false
+    }
 
-            screen: modelData
-            visible: true
+    WlSessionLock {
+        id: sessionLock
+        locked: false
+
+        WlSessionLockSurface {
+            id: lockSurface
             color: "transparent"
-
-            WlrLayershell.layer: WlrLayer.Overlay
-            WlrLayershell.namespace: "lock-preview"
-
-            anchors { top: true; right: true; bottom: true; left: true }
 
             LockSurface {
                 anchors.fill: parent
-                s: win.s
+                s: lockSurface.screen ? lockSurface.screen.height / 1080 : 1
+                auth: auth
             }
         }
+    }
+
+    IpcHandler {
+        target: "lock"
+        function lock(): void { sessionLock.locked = true; }
+        function unlock(): void { sessionLock.locked = false; }
     }
 }

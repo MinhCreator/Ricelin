@@ -4,6 +4,7 @@ import "Singletons"
 Item {
     id: surface
     property real s: 1
+    property var auth: null
 
     clip: true
 
@@ -80,5 +81,6 @@ Item {
         anchors.fill: parent
         s: surface.s
         accent: palette.accent
+        auth: surface.auth
     }
 }

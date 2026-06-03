@@ -8,6 +8,24 @@ Item {
     id: content
     property real s: 1
     property color accent: Theme.accent
+    property var auth: null
+
+    readonly property bool authenticating: auth ? auth.authenticating : false
+    property bool showError: false
+
+    Connections {
+        target: content.auth
+        enabled: content.auth !== null
+        function onFailed() {
+            content.showError = true;
+            input.text = "";
+            shake.restart();
+        }
+        function onSucceeded() {
+            content.showError = false;
+            input.text = "";
+        }
+    }
 
     readonly property var deLocale: Qt.locale("de_DE")
 
@@ -274,9 +292,23 @@ Item {
         width: 230 * content.s
         height: input.implicitHeight + 22 * content.s
         radius: 14 * content.s
-        color: Theme.fieldBg
+        color: content.showError ? Theme.errorBg : Theme.fieldBg
         border.width: 1
-        border.color: input.activeFocus ? content.accent : Theme.fieldBorder
+        border.color: content.showError ? Theme.error : (input.activeFocus ? content.accent : Theme.fieldBorder)
+        opacity: content.authenticating ? 0.6 : 1
+
+        transform: Translate { id: fieldShift }
+
+        SequentialAnimation {
+            id: shake
+            NumberAnimation { target: fieldShift; property: "x"; to: 9 * content.s; duration: 45 }
+            NumberAnimation { target: fieldShift; property: "x"; to: -9 * content.s; duration: 70 }
+            NumberAnimation { target: fieldShift; property: "x"; to: 6 * content.s; duration: 70 }
+            NumberAnimation { target: fieldShift; property: "x"; to: 0; duration: 55 }
+        }
+
+        Behavior on color { ColorAnimation { duration: 200 } }
+        Behavior on border.color { ColorAnimation { duration: 200 } }
 
         TextInput {
             id: input
@@ -291,12 +323,19 @@ Item {
             font.pixelSize: 13 * content.s
             font.weight: Font.Medium
             clip: true
+            focus: true
+            enabled: !content.authenticating
+            onTextChanged: if (text.length > 0) content.showError = false
+            onAccepted: {
+                if (content.auth && text.length > 0)
+                    content.auth.submit(text);
+            }
         }
         Text {
             anchors.centerIn: parent
             visible: input.text.length === 0 && !input.activeFocus
-            text: "enter password"
-            color: Theme.textDim
+            text: content.showError ? "wrong password" : "enter password"
+            color: content.showError ? Theme.error : Theme.textDim
             font.family: Theme.font
             font.pixelSize: 13 * content.s
             font.weight: Font.Medium
