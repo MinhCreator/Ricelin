@@ -26,7 +26,15 @@ Card {
         stdout: StdioCollector { onStreamFinished: root.ethIp = this.text.trim() }
     }
     Component.onCompleted: ipProc.running = true
-    onWiredChanged: if (root.wired) ipProc.running = true
+    onWiredChanged: ipProc.running = true
+
+    Timer {
+        interval: 15000
+        running: root.visible
+        repeat: true
+        triggeredOnStart: true
+        onTriggered: ipProc.running = true
+    }
 
     readonly property bool wifiOn: (typeof Networking !== "undefined" && Networking) ? Networking.wifiEnabled : false
     readonly property var wifiNets: (wifiDev && wifiDev.networks) ? wifiDev.networks.values : []
