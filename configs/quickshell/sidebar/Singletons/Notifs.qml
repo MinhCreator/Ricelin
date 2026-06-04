@@ -11,6 +11,7 @@ Singleton {
     property var arrivalMs: ({})
     property var popups: []
     property int tick: 0
+    property var collapsedApps: ({})
 
     readonly property var tracked: server.trackedNotifications.values
     readonly property int count: tracked.length
@@ -50,6 +51,12 @@ Singleton {
         root.popups = root.popups.filter(function(p) { return p !== n; });
     }
 
+    function toggleCollapsed(app) {
+        var c = collapsedApps;
+        c[app] = !c[app];
+        root.collapsedApps = c;
+    }
+
     function ageLabel(n) {
         void root.tick;
         var t = arrivalMs[n.id];
@@ -85,7 +92,12 @@ Singleton {
             var a = root.arrivalMs;
             a[n.id] = Date.now();
             root.arrivalMs = a;
-            n.closed.connect(function() { root.removePopup(n); });
+            n.closed.connect(function() {
+                root.removePopup(n);
+                var b = root.arrivalMs;
+                delete b[n.id];
+                root.arrivalMs = b;
+            });
             var critical = n.urgency === NotificationUrgency.Critical;
             if (!root.dnd || critical)
                 root.popups = root.popups.concat([n]).slice(-3);

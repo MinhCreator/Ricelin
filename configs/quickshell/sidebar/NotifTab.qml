@@ -85,7 +85,7 @@ Column {
         Card {
             id: groupCard
             required property var modelData
-            property bool collapsed: false
+            readonly property bool collapsed: Notifs.collapsedApps[modelData.app] === true
 
             s: root.s
             width: parent.width
@@ -126,7 +126,7 @@ Column {
                 MouseArea {
                     anchors.fill: parent
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: groupCard.collapsed = !groupCard.collapsed
+                    onClicked: Notifs.toggleCollapsed(groupCard.modelData.app)
                 }
             }
 
