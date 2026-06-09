@@ -12,5 +12,4 @@ Singleton {
     readonly property int easeMorph:    Easing.OutQuint
     readonly property real rSmall: 7
     readonly property real rTile:  13
-    readonly property real rCard:  18
 }
