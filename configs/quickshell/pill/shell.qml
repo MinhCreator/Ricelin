@@ -97,13 +97,20 @@ ShellRoot {
             readonly property string surface: root.openMon === modelData.name ? root.openSurface : ""
             readonly property bool surfaceOpen: surface.length > 0
             readonly property bool modal: surfaceOpen || pill.pinned
+            property bool kbReady: false
 
             screen: modelData
             color: "transparent"
             exclusionMode: ExclusionMode.Ignore
             WlrLayershell.layer: WlrLayer.Overlay
-            WlrLayershell.keyboardFocus: surfaceOpen ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+            WlrLayershell.keyboardFocus: kbReady ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
             WlrLayershell.namespace: "pill"
+
+            Timer {
+                id: kbDelay
+                interval: 240
+                onTriggered: if (overlay.surfaceOpen) overlay.kbReady = true
+            }
 
             anchors { top: true; left: true; right: true; bottom: true }
 
@@ -125,6 +132,8 @@ ShellRoot {
                 anchors.fill: parent
                 focus: overlay.surfaceOpen
                 Keys.onEscapePressed: root.close()
+                Keys.onUpPressed: (e) => { e.accepted = pill.mixerStep(1); }
+                Keys.onDownPressed: (e) => { e.accepted = pill.mixerStep(-1); }
 
                 Pill {
                     id: pill
@@ -141,7 +150,15 @@ ShellRoot {
                 }
             }
 
-            onSurfaceOpenChanged: if (surfaceOpen) focusScope.forceActiveFocus()
+            onSurfaceOpenChanged: {
+                if (surfaceOpen) {
+                    focusScope.forceActiveFocus();
+                    kbDelay.restart();
+                } else {
+                    kbReady = false;
+                    kbDelay.stop();
+                }
+            }
         }
     }
 }

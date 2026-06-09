@@ -25,6 +25,21 @@ Item {
     readonly property var sink: Pipewire.defaultAudioSink
     readonly property var source: Pipewire.defaultAudioSource
 
+    /**
+     * Nudge whichever fader the pointer is currently over by `deltaPct` percent.
+     * Returns true when a hovered fader handled the step, false otherwise.
+     */
+    function stepHovered(deltaPct) {
+        var faders = [brFader, vibFader, volFader, micFader];
+        for (var i = 0; i < faders.length; i++) {
+            if (faders[i].hovered) {
+                faders[i].step(deltaPct);
+                return true;
+            }
+        }
+        return false;
+    }
+
     function applyBrightness(pct) {
         var p = Math.max(5, Math.min(100, Math.round(pct)));
         Quickshell.execDetached(["bash", "-c", "timeout 3 ddcutil setvcp 10 " + p + " --bus 3 --noverify & timeout 3 ddcutil setvcp 10 " + p + " --bus 4 --noverify & wait"]);
@@ -78,8 +93,8 @@ Item {
         signal toggled()
 
         radius: 9 * root.s
-        implicitHeight: 24 * root.s
-        width: chipRow.implicitWidth + 18 * root.s
+        implicitHeight: 23 * root.s
+        width: chipRow.implicitWidth + 14 * root.s
         height: implicitHeight
         color: chip.on ? Theme.accent16 : Theme.tileBg
         border.width: 1
@@ -132,7 +147,7 @@ Item {
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
-        height: 26 * root.s
+        height: 24 * root.s
 
         Row {
             anchors.left: parent.left
@@ -160,7 +175,7 @@ Item {
         Row {
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
-            spacing: 7 * root.s
+            spacing: 6 * root.s
             Chip {
                 glyph: "静"
                 label: "Do Not Disturb"
@@ -179,7 +194,7 @@ Item {
     Rectangle {
         id: divider
         anchors.top: header.bottom
-        anchors.topMargin: 11 * root.s
+        anchors.topMargin: 9 * root.s
         anchors.left: parent.left
         anchors.right: parent.right
         height: 1
@@ -188,13 +203,14 @@ Item {
 
     Row {
         anchors.top: divider.bottom
-        anchors.topMargin: 14 * root.s
+        anchors.topMargin: 12 * root.s
         anchors.left: parent.left
         anchors.right: parent.right
-        height: 130 * root.s
+        height: 122 * root.s
         spacing: 0
 
         VFader {
+            id: brFader
             width: parent.width / 4
             s: root.s
             icon: "sun"
@@ -204,6 +220,7 @@ Item {
             onCommitted: (v) => root.applyBrightness(v * 100)
         }
         VFader {
+            id: vibFader
             width: parent.width / 4
             s: root.s
             icon: "monitor"
@@ -213,6 +230,7 @@ Item {
             onCommitted: (v) => { root.applyVibrance(v * 100); root.saveVibrance(v * 100); }
         }
         VFader {
+            id: volFader
             width: parent.width / 4
             s: root.s
             icon: "speaker"

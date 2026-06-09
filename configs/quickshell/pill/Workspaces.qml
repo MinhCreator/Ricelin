@@ -6,11 +6,12 @@ import Quickshell.Hyprland
 import "Singletons"
 
 /**
- * Live workspace dots for one monitor. Every workspace Hyprland reports on this
- * output is a dot — no numbers, no icons. The active one is a larger filled
- * vermillion dot; the rest are small and dim, brightening on hover. Clicking a
- * dot focuses that workspace via the native Hyprland-lua dispatcher. The set and
- * the active marker track the live Hyprland model, with no hardcoded ranges.
+ * Workspace dots for one monitor. A fixed per-monitor range always shows every
+ * dot — DP-1 gets [1,2,3,4,5], HDMI-A-1 gets [6,7,8,9,10] — no numbers, no
+ * icons. The active one is a larger filled vermillion dot; the rest are small
+ * and dim, brightening on hover. Clicking a dot focuses that workspace via the
+ * native Hyprland-lua dispatcher. The active marker tracks the monitor's live
+ * active workspace name from the Hyprland model.
  */
 Item {
     id: workspaces
@@ -18,16 +19,18 @@ Item {
     property string screenName: ""
     property real s: 1
 
-    readonly property var list: {
-        var out = [];
-        var all = Hyprland.workspaces.values;
-        for (var i = 0; i < all.length; i++) {
-            var w = all[i];
-            if (w && w.monitor && w.monitor.name === workspaces.screenName)
-                out.push(w);
-        }
-        out.sort(function (a, b) { return a.id - b.id; });
-        return out;
+    readonly property var range: {
+        if (screenName === "DP-1") return [1, 2, 3, 4, 5];
+        if (screenName === "HDMI-A-1") return [6, 7, 8, 9, 10];
+        return [];
+    }
+
+    readonly property string activeName: {
+        var mons = Hyprland.monitors.values;
+        for (var i = 0; i < mons.length; i++)
+            if (mons[i].name === screenName)
+                return mons[i].activeWorkspace ? mons[i].activeWorkspace.name : "";
+        return "";
     }
 
     implicitWidth: row.implicitWidth
@@ -40,25 +43,26 @@ Item {
         spacing: 4 * workspaces.s
 
         Repeater {
-            model: workspaces.list
+            model: workspaces.range
 
             delegate: Item {
                 id: slot
 
                 required property var modelData
 
+                readonly property string wsName: String(modelData)
+                readonly property bool isActive: workspaces.activeName === wsName
+
                 Layout.preferredWidth: 14 * workspaces.s
                 Layout.preferredHeight: 22 * workspaces.s
 
                 Rectangle {
                     anchors.centerIn: parent
-                    width: (slot.modelData.active ? 8 : 6) * workspaces.s
+                    width: (slot.isActive ? 8 : 6) * workspaces.s
                     height: width
                     radius: width / 2
-                    color: slot.modelData.active ? Theme.vermLit
-                        : (slot.modelData.urgent ? Theme.verm : Theme.cream)
-                    opacity: slot.modelData.active ? 1.0
-                        : (slot.modelData.urgent ? 0.9 : (area.containsMouse ? 0.7 : 0.32))
+                    color: slot.isActive ? Theme.vermLit : Theme.cream
+                    opacity: slot.isActive ? 1.0 : (area.containsMouse ? 0.7 : 0.32)
                     Behavior on width { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
                     Behavior on opacity { NumberAnimation { duration: 120 } }
                 }
@@ -68,7 +72,7 @@ Item {
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: Hyprland.dispatch('hl.dsp.focus({workspace="' + slot.modelData.name + '"})')
+                    onClicked: Hyprland.dispatch('hl.dsp.focus({workspace="' + slot.wsName + '"})')
                 }
             }
         }

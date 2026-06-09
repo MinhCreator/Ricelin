@@ -36,10 +36,11 @@ Item {
 
     readonly property real restW: 160 * s
     readonly property real restH: 38 * s
-    readonly property real hoverW: Math.max(470 * s, ws.implicitWidth + 290 * s)
-    readonly property real hoverH: 54 * s
-    readonly property real mixerW: 438 * s
-    readonly property real mixerH: 244 * s
+    readonly property real hoverSide: Math.max(ws.implicitWidth, statusRow.implicitWidth)
+    readonly property real hoverW: 2 * hoverSide + hoverClock.implicitWidth + 56 * s
+    readonly property real hoverH: 46 * s
+    readonly property real mixerW: 372 * s
+    readonly property real mixerH: 206 * s
     readonly property real calendarW: 318 * s
     readonly property real calendarH: 262 * s
     readonly property real restCorner: 18 * s
@@ -50,6 +51,14 @@ Item {
 
     signal requestSurface(string name)
     signal requestClose()
+
+    /**
+     * Forward an arrow-key nudge to the open mixer's hovered fader. Returns true
+     * when the mixer is open and a hovered fader consumed the step.
+     */
+    function mixerStep(deltaPct) {
+        return pill.mixerOpen ? mixer.stepHovered(deltaPct) : false;
+    }
 
     onSurfaceOpenChanged: if (surfaceOpen) pinned = false
 
@@ -78,26 +87,18 @@ Item {
         running: !pill.expanded
     }
 
-    property real morphRadius: restCorner
+    property real morphRadius: (mixerOpen || calendarOpen) ? openCorner : restCorner
 
-    width: restW
-    height: restH
+    width: mode === "calendar" ? calendarW
+        : mode === "mixer" ? mixerW
+        : mode === "hover" ? hoverW : restW
+    height: mode === "calendar" ? calendarH
+        : mode === "mixer" ? mixerH
+        : mode === "hover" ? hoverH : restH
 
-    states: [
-        State { name: "rest"; PropertyChanges { pill.width: pill.restW; pill.height: pill.restH; pill.morphRadius: pill.restCorner } },
-        State { name: "hover"; PropertyChanges { pill.width: pill.hoverW; pill.height: pill.hoverH; pill.morphRadius: pill.restCorner } },
-        State { name: "mixer"; PropertyChanges { pill.width: pill.mixerW; pill.height: pill.mixerH; pill.morphRadius: pill.openCorner } },
-        State { name: "calendar"; PropertyChanges { pill.width: pill.calendarW; pill.height: pill.calendarH; pill.morphRadius: pill.openCorner } }
-    ]
-    state: mode
-
-    transitions: Transition {
-        NumberAnimation {
-            properties: "width,height,morphRadius"
-            duration: 420
-            easing.type: Easing.OutCubic
-        }
-    }
+    Behavior on width { NumberAnimation { duration: 320; easing.type: Easing.OutQuint } }
+    Behavior on height { NumberAnimation { duration: 320; easing.type: Easing.OutQuint } }
+    Behavior on morphRadius { NumberAnimation { duration: 320; easing.type: Easing.OutQuint } }
 
     Rectangle {
         id: body
@@ -307,10 +308,10 @@ Item {
     Mixer {
         id: mixer
         anchors.fill: parent
-        anchors.topMargin: 16 * pill.s
-        anchors.leftMargin: 18 * pill.s
-        anchors.rightMargin: 18 * pill.s
-        anchors.bottomMargin: 16 * pill.s
+        anchors.topMargin: 13 * pill.s
+        anchors.leftMargin: 14 * pill.s
+        anchors.rightMargin: 14 * pill.s
+        anchors.bottomMargin: 12 * pill.s
         s: pill.s
         active: pill.mixerOpen
         opacity: pill.mixerOpen ? 1 : 0

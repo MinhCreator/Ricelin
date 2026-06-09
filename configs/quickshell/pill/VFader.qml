@@ -18,11 +18,31 @@ Item {
     signal moved(real v)
     signal committed(real v)
 
+    readonly property alias hovered: hoverArea.containsMouse
+
     readonly property real trackH: 70 * s
     readonly property real trackW: 6 * s
 
     implicitWidth: 30 * s
     implicitHeight: trackH + 40 * s
+
+    /**
+     * Nudge the value by a signed percentage (e.g. +1 / -1), clamped to 0..100%,
+     * emitting `moved` and `committed` so live hardware updates on each step.
+     */
+    function step(deltaPct) {
+        var v = Math.max(0, Math.min(1, root.value + deltaPct / 100));
+        root.value = v;
+        root.moved(v);
+        root.committed(v);
+    }
+
+    MouseArea {
+        id: hoverArea
+        anchors.fill: parent
+        hoverEnabled: true
+        acceptedButtons: Qt.NoButton
+    }
 
     Text {
         id: readout
