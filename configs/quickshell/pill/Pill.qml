@@ -39,7 +39,8 @@ Item {
     readonly property bool mediaOpen: surface === "media"
     readonly property bool hasMedia: Mpris.players.values.length > 0
     readonly property bool surfaceOpen: surface.length > 0
-    readonly property bool expanded: surfaceOpen || held || hovered
+    property bool hoverLatch: false
+    readonly property bool expanded: surfaceOpen || held || hoverLatch
 
     readonly property real restW: 160 * s
     readonly property real restH: 38 * s
@@ -259,6 +260,21 @@ Item {
         onHoveredChanged: pill.hovered = hovered
     }
 
+    onHoveredChanged: {
+        if (hovered) {
+            hoverLatch = true;
+            graceTimer.stop();
+        } else {
+            graceTimer.restart();
+        }
+    }
+
+    Timer {
+        id: graceTimer
+        interval: 250
+        onTriggered: pill.hoverLatch = false
+    }
+
     TapHandler {
         enabled: !pill.surfaceOpen
         gesturePolicy: TapHandler.WithinBounds
@@ -291,28 +307,6 @@ Item {
                 font.pixelSize: 16 * pill.s
                 font.weight: Font.DemiBold
                 font.features: { "tnum": 1 }
-            }
-
-            Rectangle {
-                anchors.verticalCenter: parent.verticalCenter
-                visible: Cava.active
-                width: 1
-                height: 15 * pill.s
-                color: Theme.hair
-                opacity: 0.7
-            }
-
-            Item {
-                anchors.verticalCenter: parent.verticalCenter
-                visible: Cava.active
-                width: visible ? vis.implicitWidth : 0
-                height: 16 * pill.s
-
-                VisualizerBars {
-                    id: vis
-                    anchors.centerIn: parent
-                    s: pill.s
-                }
             }
         }
     }
