@@ -1,13 +1,15 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import QtQuick.Shapes
 import Quickshell.Services.Mpris
 import "Singletons"
 
 /**
- * Media surface: album art, track title/artist, a seekable progress bar and
- * hand-drawn transport controls, driven by the active MPRIS player. Fills the
- * lower body of the morphing pill like the other surfaces.
+ * Media surface: circular album art ringed by a progress arc that echoes the
+ * pill's comet, with play/pause on the art itself and the track plus skip
+ * controls beside it. Driven by the active MPRIS player; fills the lower body
+ * of the morphing pill.
  */
 Item {
     id: root
@@ -64,80 +66,139 @@ Item {
         onTriggered: if (root.player) root.player.positionChanged();
     }
 
-    Rectangle {
-        id: artBox
+    Item {
+        id: artWrap
         anchors.left: parent.left
         anchors.top: parent.top
         anchors.bottom: parent.bottom
         width: height
-        radius: 12 * root.s
-        color: Theme.tileBg
-        border.width: 1
-        border.color: Theme.border
-        clip: true
 
-        Image {
-            id: art
+        readonly property real ringW: 2.6 * root.s
+        readonly property real r: width / 2
+
+        Rectangle {
             anchors.fill: parent
-            source: root.artUrl
-            fillMode: Image.PreserveAspectCrop
-            asynchronous: true
-            cache: true
-            visible: status === Image.Ready && source != ""
+            radius: artWrap.r
+            color: "transparent"
+            border.width: artWrap.ringW
+            border.color: Theme.trackBg
         }
-        GlyphIcon {
+
+        Shape {
+            anchors.fill: parent
+            preferredRendererType: Shape.CurveRenderer
+            ShapePath {
+                strokeColor: Theme.vermLit
+                strokeWidth: artWrap.ringW
+                fillColor: "transparent"
+                capStyle: ShapePath.RoundCap
+                PathAngleArc {
+                    centerX: artWrap.r
+                    centerY: artWrap.r
+                    radiusX: artWrap.r - artWrap.ringW / 2
+                    radiusY: artWrap.r - artWrap.ringW / 2
+                    startAngle: -90
+                    sweepAngle: 360 * root.frac
+                }
+            }
+        }
+
+        Rectangle {
+            id: artCircle
             anchors.centerIn: parent
-            width: parent.width * 0.38
+            width: parent.width - 9 * root.s
             height: width
-            name: "music"
-            color: Theme.faint
-            visible: !art.visible
+            radius: width / 2
+            color: Theme.tileBg
+            clip: true
+
+            Image {
+                id: art
+                anchors.fill: parent
+                source: root.artUrl
+                fillMode: Image.PreserveAspectCrop
+                asynchronous: true
+                cache: true
+                visible: status === Image.Ready && source != ""
+            }
+            GlyphIcon {
+                anchors.centerIn: parent
+                width: parent.width * 0.36
+                height: width
+                name: "music"
+                color: Theme.faint
+                visible: !art.visible
+            }
+
+            Rectangle {
+                anchors.fill: parent
+                radius: width / 2
+                color: Qt.rgba(0, 0, 0, 0.5)
+                opacity: artArea.containsMouse ? 1 : 0
+                Behavior on opacity { NumberAnimation { duration: 130 } }
+
+                GlyphIcon {
+                    anchors.centerIn: parent
+                    width: 26 * root.s
+                    height: width
+                    name: root.playing ? "pause" : "play"
+                    color: Theme.onAccent
+                }
+            }
+        }
+
+        MouseArea {
+            id: artArea
+            anchors.fill: parent
+            hoverEnabled: true
+            enabled: root.hasPlayer && root.player.canTogglePlaying
+            cursorShape: Qt.PointingHandCursor
+            onClicked: if (root.player) root.player.togglePlaying();
         }
     }
 
     Item {
-        anchors.left: artBox.right
-        anchors.leftMargin: 14 * root.s
+        anchors.left: artWrap.right
+        anchors.leftMargin: 16 * root.s
         anchors.right: parent.right
         anchors.top: parent.top
         anchors.bottom: parent.bottom
 
-        Text {
-            id: titleText
+        Column {
             anchors.top: parent.top
             anchors.left: parent.left
             anchors.right: parent.right
-            text: root.title
-            color: Theme.cream
-            font.family: Theme.font
-            font.pixelSize: 14 * root.s
-            font.weight: Font.DemiBold
-            elide: Text.ElideRight
-        }
-        Text {
-            id: artistText
-            anchors.top: titleText.bottom
-            anchors.topMargin: 2 * root.s
-            anchors.left: parent.left
-            anchors.right: parent.right
-            text: root.artist
-            color: Theme.dim
-            font.family: Theme.font
-            font.pixelSize: 11 * root.s
-            elide: Text.ElideRight
-            visible: text.length > 0
+            spacing: 3 * root.s
+
+            Text {
+                width: parent.width
+                text: root.title
+                color: Theme.cream
+                font.family: Theme.font
+                font.pixelSize: 15 * root.s
+                font.weight: Font.DemiBold
+                elide: Text.ElideRight
+            }
+            Text {
+                width: parent.width
+                text: root.artist
+                color: Theme.dim
+                font.family: Theme.font
+                font.pixelSize: 11.5 * root.s
+                elide: Text.ElideRight
+                visible: text.length > 0
+            }
         }
 
         Row {
-            id: controls
+            id: skips
             anchors.bottom: parent.bottom
-            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.left: parent.left
             spacing: 20 * root.s
 
             Item {
-                width: 20 * root.s
-                height: 20 * root.s
-                anchors.verticalCenter: parent.verticalCenter
+                width: 22 * root.s
+                height: 22 * root.s
                 GlyphIcon {
                     anchors.fill: parent
                     name: "prev"
@@ -146,38 +207,16 @@ Item {
                 MouseArea {
                     id: prevArea
                     anchors.fill: parent
-                    anchors.margins: -5 * root.s
+                    anchors.margins: -6 * root.s
                     hoverEnabled: true
                     enabled: root.hasPlayer && root.player.canGoPrevious
                     cursorShape: Qt.PointingHandCursor
                     onClicked: if (root.player) root.player.previous();
                 }
             }
-
             Item {
-                width: 26 * root.s
-                height: 26 * root.s
-                anchors.verticalCenter: parent.verticalCenter
-                GlyphIcon {
-                    anchors.fill: parent
-                    name: root.playing ? "pause" : "play"
-                    color: ppArea.containsMouse ? Theme.vermLit : Theme.onAccent
-                }
-                MouseArea {
-                    id: ppArea
-                    anchors.fill: parent
-                    anchors.margins: -5 * root.s
-                    hoverEnabled: true
-                    enabled: root.hasPlayer && root.player.canTogglePlaying
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: if (root.player) root.player.togglePlaying();
-                }
-            }
-
-            Item {
-                width: 20 * root.s
-                height: 20 * root.s
-                anchors.verticalCenter: parent.verticalCenter
+                width: 22 * root.s
+                height: 22 * root.s
                 GlyphIcon {
                     anchors.fill: parent
                     name: "next"
@@ -186,7 +225,7 @@ Item {
                 MouseArea {
                     id: nextArea
                     anchors.fill: parent
-                    anchors.margins: -5 * root.s
+                    anchors.margins: -6 * root.s
                     hoverEnabled: true
                     enabled: root.hasPlayer && root.player.canGoNext
                     cursorShape: Qt.PointingHandCursor
@@ -195,71 +234,15 @@ Item {
             }
         }
 
-        Item {
-            id: progress
-            anchors.left: parent.left
+        Text {
+            anchors.bottom: parent.bottom
             anchors.right: parent.right
-            anchors.bottom: controls.top
-            anchors.bottomMargin: 11 * root.s
-            height: 12 * root.s
-
-            Text {
-                id: cur
-                anchors.left: parent.left
-                anchors.verticalCenter: parent.verticalCenter
-                text: root.fmt(root.positionSec)
-                color: Theme.faint
-                font.family: Theme.font
-                font.pixelSize: 9.5 * root.s
-                font.features: { "tnum": 1 }
-            }
-            Text {
-                id: tot
-                anchors.right: parent.right
-                anchors.verticalCenter: parent.verticalCenter
-                text: root.fmt(root.lengthSec)
-                color: Theme.faint
-                font.family: Theme.font
-                font.pixelSize: 9.5 * root.s
-                font.features: { "tnum": 1 }
-            }
-
-            Rectangle {
-                id: track
-                anchors.left: cur.right
-                anchors.leftMargin: 9 * root.s
-                anchors.right: tot.left
-                anchors.rightMargin: 9 * root.s
-                anchors.verticalCenter: parent.verticalCenter
-                height: 3 * root.s
-                radius: height / 2
-                color: Theme.trackBg
-
-                Rectangle {
-                    anchors.left: parent.left
-                    anchors.top: parent.top
-                    anchors.bottom: parent.bottom
-                    width: parent.width * root.frac
-                    radius: parent.radius
-                    gradient: Gradient {
-                        orientation: Gradient.Horizontal
-                        GradientStop { position: 0.0; color: Theme.verm }
-                        GradientStop { position: 1.0; color: Theme.vermLit }
-                    }
-                }
-
-                MouseArea {
-                    anchors.fill: parent
-                    anchors.margins: -7 * root.s
-                    enabled: root.hasPlayer && root.player.canSeek && root.lengthSec > 0
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: (e) => {
-                        var f = Math.max(0, Math.min(1, (e.x + 7 * root.s) / track.width));
-                        if (root.player)
-                            root.player.position = f * root.lengthSec;
-                    }
-                }
-            }
+            anchors.bottomMargin: 3 * root.s
+            text: root.fmt(root.positionSec) + "  /  " + root.fmt(root.lengthSec)
+            color: Theme.faint
+            font.family: Theme.font
+            font.pixelSize: 10 * root.s
+            font.features: { "tnum": 1 }
         }
     }
 }

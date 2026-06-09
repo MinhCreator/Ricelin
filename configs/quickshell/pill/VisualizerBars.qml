@@ -12,6 +12,7 @@ Row {
     property real s: 1
     property real maxH: 11 * s
     property real minH: 2 * s
+    property real barW: 2.4 * s
 
     spacing: 2 * s
 
@@ -20,7 +21,7 @@ Row {
 
         delegate: Rectangle {
             required property int index
-            width: 2.4 * root.s
+            width: root.barW
             anchors.verticalCenter: parent.verticalCenter
             radius: width / 2
             color: Theme.vermLit
