@@ -44,6 +44,14 @@ Item {
         acceptedButtons: Qt.NoButton
     }
 
+    WheelHandler {
+        acceptedButtons: Qt.NoButton
+        onWheel: (event) => {
+            root.step(event.angleDelta.y > 0 ? 3 : -3);
+            event.accepted = true;
+        }
+    }
+
     Text {
         id: readout
         anchors.horizontalCenter: parent.horizontalCenter

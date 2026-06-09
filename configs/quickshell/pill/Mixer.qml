@@ -60,6 +60,27 @@ Item {
         brRead.running = true;
     }
 
+    property real pendingBrightness: -1
+    property real pendingVibrance: -1
+
+    Timer {
+        id: brDebounce
+        interval: 160
+        onTriggered: if (root.pendingBrightness >= 0) {
+            root.applyBrightness(root.pendingBrightness);
+            root.pendingBrightness = -1;
+        }
+    }
+    Timer {
+        id: vibDebounce
+        interval: 160
+        onTriggered: if (root.pendingVibrance >= 0) {
+            root.applyVibrance(root.pendingVibrance);
+            root.saveVibrance(root.pendingVibrance);
+            root.pendingVibrance = -1;
+        }
+    }
+
     PwObjectTracker {
         objects: [root.sink, root.source].filter(Boolean)
     }
@@ -216,7 +237,7 @@ Item {
             value: root.brightness / 100
             valueLabel: root.brightness + "%"
             onMoved: (v) => root.brightness = Math.round(v * 100)
-            onCommitted: (v) => root.applyBrightness(v * 100)
+            onCommitted: (v) => { root.pendingBrightness = v * 100; brDebounce.restart(); }
         }
         VFader {
             id: vibFader
@@ -226,7 +247,7 @@ Item {
             value: root.vibrance / 100
             valueLabel: root.vibrance + "%"
             onMoved: (v) => root.vibrance = Math.round(v * 100)
-            onCommitted: (v) => { root.applyVibrance(v * 100); root.saveVibrance(v * 100); }
+            onCommitted: (v) => { root.pendingVibrance = v * 100; vibDebounce.restart(); }
         }
         VFader {
             id: volFader
