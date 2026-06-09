@@ -23,6 +23,7 @@ Item {
     property real pulse: 0
     property point flyTarget: Qt.point(0, 0)
     property point dockPoint: Qt.point(0, 0)
+    property real heat: 0
     signal flightDone()
 
     readonly property real perim: 2 * (pillW - pillH) + Math.PI * pillH
@@ -168,6 +169,8 @@ Item {
         }
     }
 
+    readonly property real heatScale: 1 - 0.4 * root.heat
+
     Rectangle {
         id: halo
         readonly property real sz: head.sz * (root.mode === "dock" ? 2.0 : 2.8)
@@ -185,7 +188,7 @@ Item {
     Rectangle {
         id: head
         readonly property bool caret: root.mode === "caret"
-        readonly property real sz: (root.mode === "dock" ? (7 + 2 * root.pulse)
+        readonly property real sz: (root.mode === "dock" ? (7 + 2 * root.pulse) * root.heatScale
             : ((root.mode === "held" ? 9 : 6) + 3 * root.pulse)) * root.s
         width: caret ? 2.5 * root.s : sz
         height: caret ? 15 * root.s : sz

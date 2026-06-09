@@ -42,7 +42,7 @@ Item {
     property bool hoverLatch: false
     readonly property bool expanded: surfaceOpen || held || hoverLatch
     property string surfaceFlamePhase: "fly"
-    readonly property bool flameSurface: mediaOpen || launcherOpen || calendarOpen
+    readonly property bool flameSurface: mediaOpen || launcherOpen || calendarOpen || powerOpen
 
     readonly property real restW: 160 * s
     readonly property real restH: 38 * s
@@ -161,6 +161,7 @@ Item {
         pillW: pill.width
         pillH: pill.height
         musicActive: Cava.active
+        heat: pill.powerOpen ? power.holdProgress : 0
         pulse: Cava.values && Cava.values.length
             ? Cava.values.reduce((a, b) => a + b, 0) / Cava.values.length
             : 0
@@ -170,14 +171,18 @@ Item {
                 : Qt.point(pill.width / 2, pill.height / 2))
             : (pill.launcherOpen
             ? Qt.point(launcher.x + launcher.caretX, launcher.y + launcher.caretY)
-            : Qt.point(media.x + media.seamHeadX, media.y + media.seamHeadY))
+            : (pill.powerOpen
+            ? Qt.point(power.x + power.heatX, power.y + power.heatY)
+            : Qt.point(media.x + media.seamHeadX, media.y + media.seamHeadY)))
         flyTarget: pill.calendarOpen
             ? (calendar.todayVisible
                 ? Qt.point(calendar.x + calendar.todayX, calendar.y + calendar.todayY)
                 : Qt.point(pill.width / 2, pill.height / 2))
             : (pill.launcherOpen
             ? Qt.point(launcher.x + launcher.caretX, launcher.y + launcher.caretY)
-            : Qt.point(media.x + media.seamHeadX, media.y + media.seamHeadY))
+            : (pill.powerOpen
+            ? Qt.point(power.x + power.heatX, power.y + power.heatY)
+            : Qt.point(media.x + media.seamHeadX, media.y + media.seamHeadY)))
         mode: pill.flameSurface ? pill.surfaceFlamePhase
             : (pill.surfaceOpen ? "off"
             : (pill.expanded && musicActive ? "held" : "orbit"))
@@ -186,6 +191,7 @@ Item {
     onMediaOpenChanged: if (mediaOpen) surfaceFlamePhase = "fly"
     onLauncherOpenChanged: if (launcherOpen) surfaceFlamePhase = "fly"
     onCalendarOpenChanged: if (calendarOpen) surfaceFlamePhase = "fly"
+    onPowerOpenChanged: if (powerOpen) surfaceFlamePhase = "fly"
 
     Connections {
         target: flame
@@ -196,6 +202,8 @@ Item {
                 pill.surfaceFlamePhase = "caret";
             else if (pill.calendarOpen)
                 pill.surfaceFlamePhase = "lap";
+            else if (pill.powerOpen)
+                pill.surfaceFlamePhase = "dock";
         }
     }
 
