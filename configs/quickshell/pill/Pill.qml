@@ -55,7 +55,7 @@ Item {
     readonly property real powerW: 330 * s
     readonly property real powerH: 150 * s
     readonly property real mediaW: 384 * s
-    readonly property real mediaH: 150 * s
+    readonly property real mediaH: 172 * s
     readonly property real restCorner: 18 * s
     readonly property real openCorner: 22 * s
 
