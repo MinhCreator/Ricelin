@@ -44,9 +44,9 @@ Item {
 
     readonly property real restW: 160 * s
     readonly property real restH: 38 * s
-    readonly property real hoverPad: 18 * s
+    readonly property real hoverPad: 20 * s
     readonly property real hoverW: hoverRow.implicitWidth + 2 * hoverPad
-    readonly property real hoverH: 50 * s
+    readonly property real hoverH: 58 * s
     readonly property real mixerW: 372 * s
     readonly property real mixerH: 206 * s
     readonly property real calendarW: 318 * s
@@ -233,7 +233,7 @@ Item {
         Row {
             id: hoverRow
             anchors.centerIn: parent
-            spacing: 15 * pill.s
+            spacing: 20 * pill.s
 
             Workspaces {
                 id: ws
@@ -241,18 +241,15 @@ Item {
                 width: implicitWidth
                 screenName: pill.screenName
                 s: pill.s
-                dotActive: 9 * pill.s
-                dotIdle: 6 * pill.s
-                gap: 9 * pill.s
+                gap: 8 * pill.s
                 enabled: hover.live
             }
 
             Rectangle {
                 anchors.verticalCenter: parent.verticalCenter
                 width: 1
-                height: 16 * pill.s
+                height: 22 * pill.s
                 color: Theme.hair
-                opacity: 0.7
             }
 
             Item {
@@ -263,13 +260,13 @@ Item {
                 Column {
                     id: hoverClock
                     anchors.centerIn: parent
-                    spacing: 1 * pill.s
+                    spacing: 2 * pill.s
                     Text {
                         anchors.horizontalCenter: parent.horizontalCenter
                         text: clock.hhmm
                         color: Theme.cream
                         font.family: Theme.font
-                        font.pixelSize: 22 * pill.s
+                        font.pixelSize: 18 * pill.s
                         font.weight: Font.DemiBold
                         font.features: { "tnum": 1 }
                     }
@@ -278,10 +275,10 @@ Item {
                         text: clock.date
                         color: Theme.dim
                         font.family: Theme.font
-                        font.pixelSize: 9.5 * pill.s
+                        font.pixelSize: 8.5 * pill.s
                         font.weight: Font.Medium
                         font.capitalization: Font.AllUppercase
-                        font.letterSpacing: 1.2 * pill.s
+                        font.letterSpacing: 1.6 * pill.s
                     }
                 }
 
@@ -298,9 +295,8 @@ Item {
             Rectangle {
                 anchors.verticalCenter: parent.verticalCenter
                 width: 1
-                height: 16 * pill.s
+                height: 22 * pill.s
                 color: Theme.hair
-                opacity: 0.7
             }
 
             Row {
@@ -377,43 +373,14 @@ Item {
                 Item {
                     id: mixerIcon
                     anchors.verticalCenter: parent.verticalCenter
-                    width: 16 * pill.s
-                    height: 16 * pill.s
+                    width: 17 * pill.s
+                    height: 17 * pill.s
 
-                    readonly property color stroke: mixerArea.containsMouse ? Theme.vermLit : Theme.faint
-
-                    Repeater {
-                        model: [
-                            { x: 4, knob: 5 },
-                            { x: 8, knob: 10 },
-                            { x: 12, knob: 6 }
-                        ]
-                        delegate: Shape {
-                            id: fader
-                            required property var modelData
-                            anchors.fill: parent
-                            preferredRendererType: Shape.CurveRenderer
-
-                            ShapePath {
-                                strokeColor: mixerIcon.stroke
-                                strokeWidth: 1.6 * pill.s
-                                fillColor: "transparent"
-                                capStyle: ShapePath.RoundCap
-                                startX: fader.modelData.x * pill.s
-                                startY: 2.5 * pill.s
-                                PathLine { x: fader.modelData.x * pill.s; y: 13.5 * pill.s }
-                            }
-                            ShapePath {
-                                strokeColor: mixerIcon.stroke
-                                strokeWidth: 1.6 * pill.s
-                                fillColor: Theme.cardBot
-                                joinStyle: ShapePath.RoundJoin
-                                startX: (fader.modelData.x - 1.7) * pill.s
-                                startY: fader.modelData.knob * pill.s
-                                PathArc { x: (fader.modelData.x + 1.7) * pill.s; y: fader.modelData.knob * pill.s; radiusX: 1.7 * pill.s; radiusY: 1.7 * pill.s }
-                                PathArc { x: (fader.modelData.x - 1.7) * pill.s; y: fader.modelData.knob * pill.s; radiusX: 1.7 * pill.s; radiusY: 1.7 * pill.s }
-                            }
-                        }
+                    GlyphIcon {
+                        anchors.fill: parent
+                        name: "mixer"
+                        color: mixerArea.containsMouse ? Theme.cream : Theme.iconDim
+                        stroke: 1.7
                     }
 
                     MouseArea {
@@ -428,39 +395,15 @@ Item {
                 }
 
                 Item {
-                    id: mediaBtn
-                    anchors.verticalCenter: parent.verticalCenter
-                    visible: pill.hasMedia
-                    width: visible ? hvis.implicitWidth : 0
-                    height: 18 * pill.s
-
-                    VisualizerBars {
-                        id: hvis
-                        anchors.centerIn: parent
-                        s: pill.s
-                        maxH: 13 * pill.s
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        anchors.margins: -6 * pill.s
-                        hoverEnabled: true
-                        enabled: hover.live
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: pill.requestSurface("media")
-                    }
-                }
-
-                Item {
                     id: powerIcon
                     anchors.verticalCenter: parent.verticalCenter
-                    width: 16 * pill.s
-                    height: 16 * pill.s
+                    width: 17 * pill.s
+                    height: 17 * pill.s
 
                     GlyphIcon {
                         anchors.fill: parent
                         name: "shutdown"
-                        color: powerArea.containsMouse ? Theme.vermLit : Theme.faint
+                        color: powerArea.containsMouse ? Theme.cream : Theme.iconDim
                         stroke: 1.7
                     }
 

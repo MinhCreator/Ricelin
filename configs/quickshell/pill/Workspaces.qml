@@ -56,17 +56,18 @@ Item {
                 readonly property string wsName: String(modelData)
                 readonly property bool isActive: workspaces.activeName === wsName
 
-                Layout.preferredWidth: workspaces.dotActive
-                Layout.preferredHeight: Math.max(22 * workspaces.s, workspaces.dotActive)
+                Layout.preferredWidth: slot.isActive ? (17 * workspaces.s) : (5 * workspaces.s)
+                Layout.preferredHeight: Math.max(22 * workspaces.s, 5 * workspaces.s)
+                Behavior on Layout.preferredWidth { NumberAnimation { duration: Motion.fast; easing.type: Motion.easeStandard } }
 
                 Rectangle {
                     anchors.centerIn: parent
-                    width: slot.isActive ? workspaces.dotActive : workspaces.dotIdle
-                    height: width
-                    radius: width / 2
+                    width: slot.isActive ? (17 * workspaces.s) : (5 * workspaces.s)
+                    height: 5 * workspaces.s
+                    radius: height / 2
                     color: slot.isActive ? Theme.vermLit : Theme.cream
-                    opacity: slot.isActive ? 1.0 : (area.containsMouse ? 0.7 : 0.32)
-                    Behavior on width { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
+                    opacity: slot.isActive ? 1.0 : (area.containsMouse ? 0.7 : 0.3)
+                    Behavior on width { NumberAnimation { duration: Motion.fast; easing.type: Motion.easeStandard } }
                     Behavior on opacity { NumberAnimation { duration: 120 } }
                 }
 
