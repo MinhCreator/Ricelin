@@ -34,7 +34,9 @@ Item {
         "play": { d: "M7 5l12 7-12 7z", fill: true },
         "pause": { d: "M8 5h3v14H8z M13 5h3v14h-3z", fill: true },
         "next": { d: "M6 5l9 7-9 7z M16 5h2v14h-2z", fill: true },
-        "prev": { d: "M18 5l-9 7 9 7z M6 5h2v14H6z", fill: true }
+        "prev": { d: "M18 5l-9 7 9 7z M6 5h2v14H6z", fill: true },
+        "dnd": { d: "M6 16V11a6 6 0 0 1 9.3-5M18 11v5M4 16h16M10.5 20a1.8 1.8 0 0 0 3 0M3 3l18 18", fill: false },
+        "awake": { d: "M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6zM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z", fill: false }
     })
 
     readonly property var g: glyphs[name] !== undefined ? glyphs[name] : ({ d: "", fill: false })

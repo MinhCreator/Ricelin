@@ -25,19 +25,49 @@ Item {
     readonly property var sink: Pipewire.defaultAudioSink
     readonly property var source: Pipewire.defaultAudioSource
 
+    property int focusIndex: -1
+    readonly property var faders: [brFader, vibFader, volFader, micFader]
+
     /**
-     * Nudge whichever fader the pointer is currently over by `deltaPct` percent.
-     * Returns true when a hovered fader handled the step, false otherwise.
+     * Resolve the fader that input should target: the hovered fader takes priority,
+     * else the keyboard-focused one. Returns null when nothing is targeted.
+     */
+    function focusedFader() {
+        for (let i = 0; i < faders.length; i++)
+            if (faders[i].hovered)
+                return faders[i];
+        return focusIndex >= 0 ? faders[focusIndex] : null;
+    }
+
+    /**
+     * Nudge the targeted fader by `deltaPct` percent, syncing keyboard focus to a
+     * hovered fader. Returns true when a fader handled the step.
+     */
+    function stepFocused(deltaPct) {
+        const f = focusedFader();
+        if (!f)
+            return false;
+        if (focusIndex < 0)
+            focusIndex = faders.indexOf(f);
+        f.step(deltaPct);
+        return true;
+    }
+
+    /**
+     * Move keyboard focus across the fader row, wrapping at the ends. `dir` is +1
+     * (right) or -1 (left); a fresh focus lands on the first or last fader.
+     */
+    function moveFocus(dir) {
+        focusIndex = focusIndex < 0 ? (dir > 0 ? 0 : faders.length - 1)
+                                    : (focusIndex + dir + faders.length) % faders.length;
+    }
+
+    /**
+     * Nudge whichever fader is targeted by `deltaPct` percent. Returns true when a
+     * fader handled the step, false otherwise.
      */
     function stepHovered(deltaPct) {
-        var faders = [brFader, vibFader, volFader, micFader];
-        for (var i = 0; i < faders.length; i++) {
-            if (faders[i].hovered) {
-                faders[i].step(deltaPct);
-                return true;
-            }
-        }
-        return false;
+        return stepFocused(deltaPct);
     }
 
     function applyBrightness(pct) {
@@ -105,55 +135,26 @@ Item {
         printErrors: false
     }
 
-    component Chip: Rectangle {
+    component IconChip: Rectangle {
         id: chip
         property string glyph: ""
-        property string label: ""
         property bool on: false
         signal toggled()
 
-        radius: 9 * root.s
-        implicitHeight: 23 * root.s
-        width: chipRow.implicitWidth + 14 * root.s
-        height: implicitHeight
-        color: chip.on ? Theme.accent16 : Theme.tileBg
+        width: 26 * root.s
+        height: 26 * root.s
+        radius: 8 * root.s
+        color: chip.on ? Theme.frameBg : "transparent"
         border.width: 1
-        border.color: chip.on ? Theme.accent45 : Theme.border
+        border.color: chip.on ? Theme.frameBorder : Theme.border
 
-        Row {
-            id: chipRow
+        GlyphIcon {
             anchors.centerIn: parent
-            spacing: 6 * root.s
-
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                text: chip.glyph
-                color: chip.on ? Theme.vermLit : Theme.subtle
-                font.family: Theme.font
-                font.pixelSize: 12 * root.s
-            }
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                text: chip.label
-                color: chip.on ? Theme.cream : Theme.subtle
-                font.family: Theme.font
-                font.pixelSize: 10.5 * root.s
-                font.weight: Font.DemiBold
-            }
-            Rectangle {
-                anchors.verticalCenter: parent.verticalCenter
-                visible: chip.on
-                width: 5 * root.s
-                height: 5 * root.s
-                radius: width / 2
-                color: Theme.vermLit
-                layer.enabled: true
-                layer.effect: MultiEffect {
-                    shadowEnabled: true
-                    shadowColor: Theme.vermLit
-                    shadowBlur: 0.9
-                }
-            }
+            width: 15 * root.s
+            height: 15 * root.s
+            name: chip.glyph
+            color: chip.on ? Theme.vermLit : Theme.iconDim
+            stroke: 1.7
         }
         MouseArea {
             anchors.fill: parent
@@ -196,15 +197,13 @@ Item {
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
             spacing: 6 * root.s
-            Chip {
-                glyph: "静"
-                label: "Do Not Disturb"
+            IconChip {
+                glyph: "dnd"
                 on: Flags.dnd
                 onToggled: Flags.dnd = !Flags.dnd
             }
-            Chip {
-                glyph: "覚"
-                label: "Keep Awake"
+            IconChip {
+                glyph: "awake"
                 on: Flags.keepAwake
                 onToggled: Flags.keepAwake = !Flags.keepAwake
             }
@@ -223,10 +222,10 @@ Item {
 
     Row {
         anchors.top: divider.bottom
-        anchors.topMargin: 12 * root.s
+        anchors.topMargin: 10 * root.s
         anchors.left: parent.left
         anchors.right: parent.right
-        height: 122 * root.s
+        height: 130 * root.s
         spacing: 0
 
         VFader {
@@ -234,6 +233,7 @@ Item {
             width: parent.width / 4
             s: root.s
             icon: "sun"
+            focused: root.focusIndex === 0
             value: root.brightness / 100
             valueLabel: root.brightness + "%"
             onMoved: (v) => root.brightness = Math.round(v * 100)
@@ -244,6 +244,7 @@ Item {
             width: parent.width / 4
             s: root.s
             icon: "monitor"
+            focused: root.focusIndex === 1
             value: root.vibrance / 100
             valueLabel: root.vibrance + "%"
             onMoved: (v) => root.vibrance = Math.round(v * 100)
@@ -254,6 +255,7 @@ Item {
             width: parent.width / 4
             s: root.s
             icon: "speaker"
+            focused: root.focusIndex === 2
             value: root.sink && root.sink.audio ? root.sink.audio.volume : 0
             valueLabel: Math.round((root.sink && root.sink.audio ? root.sink.audio.volume : 0) * 100) + "%"
             onMoved: (v) => { if (root.sink && root.sink.audio) root.sink.audio.volume = v; }
@@ -263,6 +265,7 @@ Item {
             width: parent.width / 4
             s: root.s
             icon: (root.source && root.source.audio && root.source.audio.muted) ? "mic-off" : "mic"
+            focused: root.focusIndex === 3
             value: root.source && root.source.audio ? root.source.audio.volume : 0
             valueLabel: (root.source && root.source.audio && root.source.audio.muted)
                 ? "off"
@@ -270,14 +273,20 @@ Item {
             onMoved: (v) => { if (root.source && root.source.audio) root.source.audio.volume = v; }
 
             MouseArea {
-                anchors.top: parent.bottom
-                anchors.topMargin: -22 * root.s
+                anchors.bottom: parent.bottom
                 anchors.horizontalCenter: parent.horizontalCenter
                 width: 24 * root.s
                 height: 22 * root.s
                 cursorShape: Qt.PointingHandCursor
                 onClicked: { if (root.source && root.source.audio) root.source.audio.muted = !root.source.audio.muted; }
             }
+        }
+    }
+
+    WheelHandler {
+        onWheel: (event) => {
+            if (root.stepFocused(event.angleDelta.y > 0 ? 3 : -3))
+                event.accepted = true;
         }
     }
 }

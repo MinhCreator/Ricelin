@@ -69,11 +69,20 @@ Item {
     signal requestClose()
 
     /**
-     * Forward an arrow-key nudge to the open mixer's hovered fader. Returns true
-     * when the mixer is open and a hovered fader consumed the step.
+     * Forward an arrow-key nudge to the open mixer's targeted fader. Returns true
+     * when the mixer is open and a fader consumed the step.
      */
     function mixerStep(deltaPct) {
         return pill.mixerOpen ? mixer.stepHovered(deltaPct) : false;
+    }
+
+    /**
+     * Move the open mixer's keyboard focus across the fader row; `dir` is +1
+     * (right) or -1 (left). No-op unless the mixer is open.
+     */
+    function mixerFocusMove(dir) {
+        if (pill.mixerOpen)
+            mixer.moveFocus(dir);
     }
 
     onSurfaceOpenChanged: if (surfaceOpen) pinned = false
