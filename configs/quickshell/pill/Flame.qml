@@ -22,6 +22,7 @@ Item {
     property bool musicActive: false
     property real pulse: 0
     property point flyTarget: Qt.point(0, 0)
+    property point dockPoint: Qt.point(0, 0)
     signal flightDone()
 
     readonly property real perim: 2 * (pillW - pillH) + Math.PI * pillH
@@ -55,6 +56,11 @@ Item {
     onPillWChanged: if (mode === "held") syncPoint()
     onPillHChanged: if (mode === "held") syncPoint()
 
+    onDockPointChanged: if (mode === "dock") {
+        px = dockPoint.x;
+        py = dockPoint.y;
+    }
+
     property real flyT: 0
     property point flyStart: Qt.point(0, 0)
     property point flyCtrl: Qt.point(0, 0)
@@ -65,6 +71,9 @@ Item {
             flyCtrl = Qt.point((px + flyTarget.x) / 2, Math.min(py, flyTarget.y) - pillH);
             flyT = 0;
             flyAnim.restart();
+        } else if (mode === "dock") {
+            px = dockPoint.x;
+            py = dockPoint.y;
         } else if (mode === "held" || mode === "orbit") {
             syncPoint();
         }
@@ -125,8 +134,8 @@ Item {
 
     Rectangle {
         id: halo
-        readonly property real sz: head.sz * 2.8
-        visible: root.mode === "held"
+        readonly property real sz: head.sz * (root.mode === "dock" ? 2.0 : 2.8)
+        visible: root.mode === "held" || root.mode === "dock"
         width: sz
         height: sz
         radius: sz / 2
@@ -138,7 +147,8 @@ Item {
 
     Rectangle {
         id: head
-        readonly property real sz: ((root.mode === "held" ? 9 : 6) + 3 * root.pulse) * root.s
+        readonly property real sz: (root.mode === "dock" ? (7 + 2 * root.pulse)
+            : ((root.mode === "held" ? 9 : 6) + 3 * root.pulse)) * root.s
         width: sz
         height: sz
         radius: sz / 2
