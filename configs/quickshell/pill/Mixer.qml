@@ -26,30 +26,33 @@ Item {
 
     property int focusIndex: -1
     readonly property var faders: [brFader, vibFader, volFader, micFader]
-
-    onActiveChanged: if (!active) focusIndex = -1;
+    readonly property bool surfaceHovered: hoverTracker.hovered
 
     /**
-     * Resolve the fader that input should target: the hovered fader takes priority,
-     * else the keyboard-focused one. Returns null when nothing is targeted.
+     * Pointer-driven fader targeting. MouseArea hover delivery is unreliable on
+     * this layer-shell surface, so a non-blocking HoverHandler is the single
+     * hover source: its pointer x maps to a fader column, which drives keyboard
+     * focus directly.
      */
-    function focusedFader() {
-        for (let i = 0; i < faders.length; i++)
-            if (faders[i].hovered)
-                return faders[i];
-        return focusIndex >= 0 ? faders[focusIndex] : null;
+    readonly property int hoverIndex: surfaceHovered && width > 0
+        ? Math.max(0, Math.min(faders.length - 1, Math.floor(hoverTracker.point.position.x / (width / faders.length))))
+        : -1
+    onHoverIndexChanged: if (hoverIndex >= 0) focusIndex = hoverIndex
+
+    HoverHandler {
+        id: hoverTracker
     }
 
+    onActiveChanged: focusIndex = active ? 0 : -1
+
     /**
-     * Nudge the targeted fader by `deltaPct` percent, syncing keyboard focus to a
-     * hovered fader. Returns true when a fader handled the step.
+     * Nudge the focused fader by `deltaPct` percent. Returns true when a fader
+     * handled the step.
      */
     function stepFocused(deltaPct) {
-        const f = focusedFader();
-        if (!f)
+        if (focusIndex < 0)
             return false;
-        focusIndex = faders.indexOf(f);
-        f.step(deltaPct);
+        faders[focusIndex].step(deltaPct);
         return true;
     }
 
@@ -225,6 +228,7 @@ Item {
             width: parent.width / 4
             s: root.s
             icon: "sun"
+            showValue: root.surfaceHovered
             focused: root.focusIndex === 0
             value: root.brightness / 100
             valueLabel: root.brightness + "%"
@@ -236,6 +240,7 @@ Item {
             width: parent.width / 4
             s: root.s
             icon: "monitor"
+            showValue: root.surfaceHovered
             focused: root.focusIndex === 1
             value: root.vibrance / 100
             valueLabel: root.vibrance + "%"
@@ -247,6 +252,7 @@ Item {
             width: parent.width / 4
             s: root.s
             icon: "speaker"
+            showValue: root.surfaceHovered
             focused: root.focusIndex === 2
             value: root.sink && root.sink.audio ? root.sink.audio.volume : 0
             valueLabel: Math.round((root.sink && root.sink.audio ? root.sink.audio.volume : 0) * 100) + "%"
@@ -257,6 +263,7 @@ Item {
             width: parent.width / 4
             s: root.s
             icon: (root.source && root.source.audio && root.source.audio.muted) ? "mic-off" : "mic"
+            showValue: root.surfaceHovered
             focused: root.focusIndex === 3
             value: root.source && root.source.audio ? root.source.audio.volume : 0
             valueLabel: (root.source && root.source.audio && root.source.audio.muted)
@@ -275,15 +282,17 @@ Item {
         }
     }
 
-    WheelHandler {
+    MouseArea {
+        id: wheelArea
+        anchors.fill: parent
+        acceptedButtons: Qt.NoButton
         property real acc: 0
         onWheel: (event) => {
             acc += event.angleDelta.y / 120;
             const notches = Math.trunc(acc);
-            if (notches !== 0 && root.stepFocused(notches * 3)) {
+            if (notches !== 0 && root.stepFocused(notches * 3))
                 acc -= notches;
-                event.accepted = true;
-            }
+            event.accepted = true;
         }
     }
 }

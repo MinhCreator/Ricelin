@@ -117,8 +117,13 @@ ShellRoot {
 
             anchors { top: true; left: true; right: true; bottom: true }
 
-            mask: modal ? null : pillRegion
+            mask: modal ? fullRegion : pillRegion
             Region { id: pillRegion; item: pill }
+            Region {
+                id: fullRegion
+                width: overlay.width
+                height: overlay.height
+            }
 
             MouseArea {
                 anchors.fill: parent

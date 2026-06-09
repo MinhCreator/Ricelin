@@ -3,8 +3,9 @@ import "Singletons"
 
 /**
  * Vertical filament fader. A thin matte thread with a rising fill and a flat
- * tick marker. Dim at rest; saturates and reveals its readout when lit (hover
- * or keyboard focus). No knob, no glow. Value is normalised 0..1.
+ * tick marker. Dim at rest; saturates and reveals its readout when focused.
+ * Hover targeting is owned by the parent surface, which maps pointer position
+ * to a fader column and drives `focused`. No knob, no glow. Value is 0..1.
  */
 Item {
     id: root
@@ -14,12 +15,12 @@ Item {
     property real value: 0.5
     property string valueLabel: ""
     property bool focused: false
+    property bool showValue: false
 
     signal moved(real v)
     signal committed(real v)
 
-    readonly property alias hovered: hoverArea.containsMouse
-    readonly property bool lit: hovered || focused
+    readonly property bool lit: focused
 
     readonly property real trackH: 86 * s
 
@@ -34,13 +35,6 @@ Item {
         const v = Math.max(0, Math.min(1, root.value + deltaPct / 100));
         root.moved(v);
         root.committed(v);
-    }
-
-    MouseArea {
-        id: hoverArea
-        anchors.fill: parent
-        hoverEnabled: true
-        acceptedButtons: Qt.NoButton
     }
 
     Item {
@@ -106,8 +100,8 @@ Item {
         anchors.topMargin: 7 * root.s
         anchors.horizontalCenter: parent.horizontalCenter
         text: root.valueLabel
-        color: Theme.cream
-        opacity: root.lit ? 1 : 0
+        color: root.lit ? Theme.cream : Theme.dim
+        opacity: root.lit || root.showValue ? 1 : 0
         font.family: Theme.font
         font.pixelSize: 9 * root.s
         font.weight: Font.DemiBold
