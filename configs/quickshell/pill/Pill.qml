@@ -4,6 +4,7 @@ import QtQuick
 import QtQuick.Effects
 import QtQuick.Shapes
 import Quickshell
+import Quickshell.Services.Mpris
 import "Singletons"
 
 /**
@@ -35,6 +36,8 @@ Item {
     readonly property bool calendarOpen: surface === "calendar"
     readonly property bool launcherOpen: surface === "launcher"
     readonly property bool powerOpen: surface === "power"
+    readonly property bool mediaOpen: surface === "media"
+    readonly property bool hasMedia: Mpris.players.values.length > 0
     readonly property bool surfaceOpen: surface.length > 0
     readonly property bool expanded: surfaceOpen || held || hovered
 
@@ -51,13 +54,16 @@ Item {
     readonly property real launcherH: 332 * s
     readonly property real powerW: 330 * s
     readonly property real powerH: 150 * s
+    readonly property real mediaW: 360 * s
+    readonly property real mediaH: 134 * s
     readonly property real restCorner: 18 * s
     readonly property real openCorner: 22 * s
 
     readonly property string mode: calendarOpen ? "calendar"
         : (launcherOpen ? "launcher"
         : (powerOpen ? "power"
-        : (mixerOpen ? "mixer" : (expanded ? "hover" : "rest"))))
+        : (mediaOpen ? "media"
+        : (mixerOpen ? "mixer" : (expanded ? "hover" : "rest")))))
 
     signal requestSurface(string name)
     signal requestClose()
@@ -97,16 +103,18 @@ Item {
         running: !pill.expanded
     }
 
-    property real morphRadius: (mixerOpen || calendarOpen || launcherOpen || powerOpen) ? openCorner : restCorner
+    property real morphRadius: (mixerOpen || calendarOpen || launcherOpen || powerOpen || mediaOpen) ? openCorner : restCorner
 
     width: mode === "calendar" ? calendarW
         : mode === "launcher" ? launcherW
         : mode === "power" ? powerW
+        : mode === "media" ? mediaW
         : mode === "mixer" ? mixerW
         : mode === "hover" ? hoverW : restW
     height: mode === "calendar" ? calendarH
         : mode === "launcher" ? launcherH
         : mode === "power" ? powerH
+        : mode === "media" ? mediaH
         : mode === "mixer" ? mixerH
         : mode === "hover" ? hoverH : restH
 
@@ -528,6 +536,31 @@ Item {
                 }
 
                 Item {
+                    id: musicIcon
+                    anchors.verticalCenter: parent.verticalCenter
+                    visible: pill.hasMedia
+                    width: visible ? 16 * pill.s : 0
+                    height: 16 * pill.s
+
+                    GlyphIcon {
+                        anchors.fill: parent
+                        name: "music"
+                        color: musicArea.containsMouse ? Theme.vermLit : Theme.faint
+                        stroke: 1.7
+                    }
+
+                    MouseArea {
+                        id: musicArea
+                        anchors.fill: parent
+                        anchors.margins: -6 * pill.s
+                        hoverEnabled: true
+                        enabled: hover.live
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: pill.requestSurface("media")
+                    }
+                }
+
+                Item {
                     id: powerIcon
                     anchors.verticalCenter: parent.verticalCenter
                     width: 16 * pill.s
@@ -614,6 +647,23 @@ Item {
         active: pill.powerOpen
         enabled: pill.powerOpen
         opacity: pill.powerOpen ? 1 : 0
+        Behavior on opacity {
+            NumberAnimation { duration: 220; easing.type: Easing.OutCubic }
+        }
+        onRequestClose: pill.requestClose()
+    }
+
+    Media {
+        id: media
+        anchors.fill: parent
+        anchors.topMargin: 15 * pill.s
+        anchors.leftMargin: 16 * pill.s
+        anchors.rightMargin: 16 * pill.s
+        anchors.bottomMargin: 15 * pill.s
+        s: pill.s
+        active: pill.mediaOpen
+        enabled: pill.mediaOpen
+        opacity: pill.mediaOpen ? 1 : 0
         Behavior on opacity {
             NumberAnimation { duration: 220; easing.type: Easing.OutCubic }
         }

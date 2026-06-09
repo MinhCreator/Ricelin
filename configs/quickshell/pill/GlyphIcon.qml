@@ -30,6 +30,7 @@ Item {
         "suspend": { d: "M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z", fill: false },
         "reboot": { d: "M21 12a9 9 0 1 1-2.6-6.4 M21 3v5h-5", fill: false },
         "shutdown": { d: "M12 3v9 M7.8 6.3a8 8 0 1 0 8.4 0", fill: false },
+        "music": { d: "M9 18V5l12-2v13 M9 18a3 3 0 1 1-6 0 3 3 0 0 1 6 0z M21 16a3 3 0 1 1-6 0 3 3 0 0 1 6 0z", fill: false },
         "play": { d: "M7 5l12 7-12 7z", fill: true },
         "pause": { d: "M8 5h3v14H8z M13 5h3v14h-3z", fill: true },
         "next": { d: "M6 5l9 7-9 7z M16 5h2v14h-2z", fill: true },
