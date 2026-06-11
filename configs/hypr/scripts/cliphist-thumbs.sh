@@ -2,6 +2,7 @@
 cache="${XDG_CACHE_HOME:-$HOME/.cache}/cliphist-thumbs"
 mkdir -p "$cache"
 
+tab=$(printf '\t')
 snapshot=$(cliphist list)
 
 ids=$(printf '%s\n' "$snapshot" | cut -f1)
@@ -13,10 +14,20 @@ done
 
 printf '%s\n' "$snapshot" | while IFS= read -r line; do
     case "$line" in
-        *"[[ binary data"*png*|*"[[ binary data"*jpg*|*"[[ binary data"*jpeg*|*"[[ binary data"*gif*|*"[[ binary data"*bmp*|*"[[ binary data"*webp*)
+        *"$tab[[ binary data"*png*" ]]"|*"$tab[[ binary data"*jpg*" ]]"|*"$tab[[ binary data"*jpeg*" ]]"|*"$tab[[ binary data"*gif*" ]]"|*"$tab[[ binary data"*bmp*" ]]"|*"$tab[[ binary data"*webp*" ]]")
             id=$(printf '%s' "$line" | cut -f1)
             thumb="$cache/$id.png"
-            [ -f "$thumb" ] || printf '%s' "$id" | cliphist decode > "$thumb" 2>/dev/null
+            if [ ! -s "$thumb" ]; then
+                raw="$cache/.raw.$id"
+                printf '%s' "$id" | cliphist decode > "$raw" 2>/dev/null
+                magick "${raw}[0]" -resize '256x256>' "png:$thumb.tmp" 2>/dev/null
+                if [ -s "$thumb.tmp" ]; then
+                    mv "$thumb.tmp" "$thumb"
+                else
+                    rm -f "$thumb.tmp"
+                fi
+                rm -f "$raw"
+            fi
             ;;
     esac
 done

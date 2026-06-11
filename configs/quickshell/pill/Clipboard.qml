@@ -2,7 +2,6 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Controls
-import Quickshell
 import "Singletons"
 
 /**
@@ -43,7 +42,7 @@ Item {
             return all;
         var out = [];
         for (var i = 0; i < all.length; i++) {
-            var hay = (all[i].isImage ? all[i].meta : all[i].preview).toLowerCase();
+            var hay = (all[i].isImage ? all[i].label + " " + all[i].sizeLabel : all[i].preview).toLowerCase();
             if (hay.indexOf(q) !== -1)
                 out.push(all[i]);
         }
@@ -230,7 +229,6 @@ Item {
                         sourceSize.height: 128
                         fillMode: Image.PreserveAspectCrop
                         asynchronous: true
-                        cache: false
                         smooth: true
                     }
                 }
@@ -239,9 +237,9 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                     anchors.left: thumbTile.visible ? thumbTile.right : parent.left
                     anchors.leftMargin: thumbTile.visible ? 9 * root.s : 0
-                    anchors.right: tail.left
+                    anchors.right: sizeTag.left
                     anchors.rightMargin: 8 * root.s
-                    text: row.entry === undefined ? "" : (row.entry.isImage ? row.entry.meta : row.entry.preview)
+                    text: row.entry === undefined ? "" : (row.entry.isImage ? row.entry.label : row.entry.preview)
                     color: row.entry !== undefined && row.entry.isImage
                         ? (row.selected ? Theme.dim : Theme.faint)
                         : (row.selected ? Theme.cream : Theme.subtle)
@@ -251,6 +249,19 @@ Item {
                     elide: Text.ElideRight
                     maximumLineCount: 1
                     textFormat: Text.PlainText
+                }
+
+                Text {
+                    id: sizeTag
+                    anchors.right: tail.left
+                    anchors.rightMargin: width > 0 ? 8 * root.s : 0
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: row.entry !== undefined && row.entry.isImage ? row.entry.sizeLabel : ""
+                    width: text.length ? implicitWidth : 0
+                    color: Theme.faint
+                    font.family: Theme.font
+                    font.pixelSize: 10.5 * root.s
+                    font.features: { "tnum": 1 }
                 }
 
                 Item {
