@@ -181,10 +181,15 @@ Item {
             readonly property var entry: root.results[index]
             readonly property bool selected: index === root.selectedIndex
 
+            HoverHandler {
+                id: rowHover
+                onHoveredChanged: if (hovered) root.selectedIndex = row.index
+            }
+
             Rectangle {
                 anchors.fill: parent
                 radius: 9 * root.s
-                visible: row.selected || rowArea.containsMouse
+                visible: row.selected || rowHover.hovered
                 color: row.selected ? Theme.frameBg : Qt.rgba(0.94, 0.88, 0.84, 0.03)
                 border.width: row.selected ? 1 : 0
                 border.color: Theme.frameBorder
@@ -193,9 +198,7 @@ Item {
             MouseArea {
                 id: rowArea
                 anchors.fill: parent
-                hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
-                onEntered: root.selectedIndex = row.index
                 onClicked: {
                     root.selectedIndex = row.index;
                     root.activate();
@@ -261,7 +264,7 @@ Item {
                         id: ret
                         anchors.right: parent.right
                         anchors.verticalCenter: parent.verticalCenter
-                        opacity: row.selected && !rowArea.containsMouse ? 1 : 0
+                        opacity: row.selected && !rowHover.hovered ? 1 : 0
                         text: "↵"
                         color: Theme.vermLit
                         font.family: Theme.font
@@ -273,7 +276,7 @@ Item {
                         id: dismiss
                         anchors.right: parent.right
                         anchors.verticalCenter: parent.verticalCenter
-                        opacity: rowArea.containsMouse ? 1 : 0
+                        opacity: rowHover.hovered ? 1 : 0
                         text: "✕"
                         color: dismissArea.containsMouse ? Theme.cream : Theme.dim
                         font.pixelSize: 10 * root.s
@@ -283,7 +286,7 @@ Item {
                             id: dismissArea
                             anchors.fill: parent
                             anchors.margins: -6 * root.s
-                            enabled: rowArea.containsMouse || containsMouse
+                            enabled: rowHover.hovered
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
                             onClicked: root.removeAt(row.index)
