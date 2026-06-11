@@ -15,11 +15,14 @@ Item {
     property string shownTrackLine: ""
     property bool shownPlaying: false
     property string shownArtUrl: ""
+    property string lastTrackLine: ""
+    property bool lastPlaying: false
 
     readonly property var sink: Pipewire.defaultAudioSink
     readonly property bool muted: sink && sink.audio ? sink.audio.muted : false
     readonly property real volume: sink && sink.audio ? Math.max(0, Math.min(1, sink.audio.volume)) : 0
 
+    property var stickyPlayer: null
     readonly property var player: {
         var list = Mpris.players.values;
         if (!list || list.length === 0)
@@ -28,6 +31,8 @@ Item {
             if (list[i] && list[i].isPlaying)
                 return list[i];
         }
+        if (stickyPlayer && list.indexOf(stickyPlayer) >= 0)
+            return stickyPlayer;
         return list[0];
     }
     readonly property bool playing: player !== null && player.isPlaying
@@ -45,6 +50,16 @@ Item {
 
     readonly property real desiredW: kind === "track" ? 332 * s : 248 * s
     readonly property real desiredH: kind === "track" ? 56 * s : 44 * s
+
+    function trackEvent() {
+        var line = trackLine;
+        var p = playing;
+        if (line === lastTrackLine && p === lastPlaying)
+            return;
+        lastTrackLine = line;
+        lastPlaying = p;
+        flash("track");
+    }
 
     function flash(which) {
         if (!armed || suppressed || cooldownTimer.running)
@@ -95,10 +110,15 @@ Item {
         function onMutedChanged() { root.flash("volume"); }
     }
 
+    onPlayerChanged: {
+        stickyPlayer = player;
+        trackEvent();
+    }
+
     Connections {
         target: root.player
-        function onTrackTitleChanged() { root.flash("track"); }
-        function onPlaybackStateChanged() { root.flash("track"); }
+        function onTrackTitleChanged() { root.trackEvent(); }
+        function onPlaybackStateChanged() { root.trackEvent(); }
     }
 
     Item {
