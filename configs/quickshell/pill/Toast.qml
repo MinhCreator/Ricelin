@@ -16,6 +16,7 @@ Item {
     id: root
 
     property real s: 1
+    property bool live: true
     required property var notif
 
     signal openCenter()
@@ -27,7 +28,7 @@ Item {
 
     Timer {
         interval: Math.max(300, (Notifs.expireAt[root.notif.id] || 0) - Date.now())
-        running: root.notif.urgency !== NotificationUrgency.Critical
+        running: root.live && root.notif.urgency !== NotificationUrgency.Critical
         onTriggered: Notifs.removePopup(root.notif)
     }
 

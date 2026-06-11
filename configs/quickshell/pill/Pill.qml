@@ -43,6 +43,7 @@ Item {
     property bool hoverLatch: false
     readonly property bool expanded: surfaceOpen || held || hoverLatch
     readonly property bool toastActive: Notifs.popups.length > 0
+    readonly property bool osdActive: osd.flashing
 
     readonly property real restW: 160 * s
     readonly property real restH: 38 * s
@@ -60,6 +61,7 @@ Item {
     readonly property real mediaW: 336 * s
     readonly property real mediaH: 122 * s
     readonly property real toastW: 342 * s
+    readonly property real osdH: 44 * s
     readonly property real restCorner: 18 * s
     readonly property real openCorner: 22 * s
 
@@ -69,8 +71,9 @@ Item {
         : (mediaOpen ? "media"
         : (mixerOpen ? "mixer"
         : (linkOpen ? "link"
+        : (osdActive && !held ? "osd"
         : (toastActive && !held ? "toast"
-        : (expanded ? "hover" : "rest")))))))
+        : (expanded ? "hover" : "rest"))))))))
 
     signal requestSurface(string name)
     signal requestClose()
@@ -116,7 +119,7 @@ Item {
         precision: SystemClock.Minutes
     }
 
-    property real morphRadius: (mixerOpen || calendarOpen || launcherOpen || powerOpen || mediaOpen || linkOpen || mode === "toast") ? openCorner : restCorner
+    property real morphRadius: (mixerOpen || calendarOpen || launcherOpen || powerOpen || mediaOpen || linkOpen || mode === "toast" || mode === "osd") ? openCorner : restCorner
 
     width: mode === "calendar" ? calendarW
         : mode === "launcher" ? launcherW
@@ -124,6 +127,7 @@ Item {
         : mode === "media" ? mediaW
         : mode === "mixer" ? mixerW
         : mode === "link" ? link.desiredW
+        : mode === "osd" ? osd.desiredW
         : mode === "toast" ? toastW
         : mode === "hover" ? hoverW
         : Math.max(restW, restRow.implicitWidth + 36 * s)
@@ -133,6 +137,7 @@ Item {
         : mode === "media" ? mediaH
         : mode === "mixer" ? mixerH
         : mode === "link" ? link.implicitHeight + 26 * s
+        : mode === "osd" ? osdH
         : mode === "toast" ? (toastLoader.item ? toastLoader.item.implicitHeight + 24 * s : restH)
         : mode === "hover" ? hoverH : restH
 
@@ -182,7 +187,7 @@ Item {
             : (pill.launcherOpen ? "caret"
             : (pill.calendarOpen ? (calendar.todayVisible ? "ring" : "dock")
             : (pill.mixerOpen || pill.powerOpen || pill.linkOpen ? "dock"
-            : (pill.mode === "toast" ? "off"
+            : (pill.mode === "toast" || pill.mode === "osd" ? "off"
             : "rest"))))
         point: pill.mediaOpen
             ? Qt.point(media.x + media.seamHeadX, media.y + media.seamHeadY)
@@ -230,7 +235,7 @@ Item {
     Item {
         id: rest
         anchors.fill: parent
-        opacity: (pill.expanded || pill.mode === "toast") ? 0 : 1
+        opacity: (pill.expanded || pill.mode === "toast" || pill.mode === "osd") ? 0 : 1
         visible: opacity > 0.01
         Behavior on opacity { NumberAnimation { duration: 150 } }
 
@@ -595,6 +600,23 @@ Item {
         }
     }
 
+    Osd {
+        id: osd
+        anchors.fill: parent
+        anchors.topMargin: 12 * pill.s
+        anchors.leftMargin: 18 * pill.s
+        anchors.rightMargin: 18 * pill.s
+        anchors.bottomMargin: 12 * pill.s
+        s: pill.s
+        suppressed: pill.surfaceOpen || pill.held
+        enabled: pill.mode === "osd"
+        opacity: pill.mode === "osd" ? 1 : 0
+        visible: opacity > 0.01
+        Behavior on opacity {
+            NumberAnimation { duration: Motion.standard; easing.type: Motion.easeStandard }
+        }
+    }
+
     Loader {
         id: toastLoader
         active: pill.toastActive
@@ -619,6 +641,7 @@ Item {
                 anchors.right: parent.right
                 anchors.top: parent.top
                 s: pill.s
+                live: pill.mode === "toast"
                 notif: Notifs.popups.length > 0 ? Notifs.popups[Notifs.popups.length - 1] : null
                 onOpenCenter: pill.requestSurface("link")
             }
