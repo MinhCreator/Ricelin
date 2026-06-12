@@ -1,8 +1,8 @@
 #!/bin/sh
-i=0
-while [ "$i" -lt 10 ]; do
-    pgrep -f "qs -c lock" >/dev/null && exit 0
-    qs -c lock -d 2>/dev/null
-    sleep 2
-    i=$((i + 1))
+exec 9>"${XDG_RUNTIME_DIR:-/tmp}/lock-watchdog.lock"
+flock -n 9 || exit 0
+
+while true; do
+    pgrep -f "qs -c lock -d" >/dev/null || qs -c lock -d 2>/dev/null
+    sleep 5
 done

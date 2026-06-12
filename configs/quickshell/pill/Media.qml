@@ -104,9 +104,15 @@ Item {
         return Qt.rgba(a.r + (b.r - a.r) * t, a.g + (b.g - a.g) * t, a.b + (b.b - a.b) * t, 1);
     }
 
-    onArtUrlChanged: coverPair.load(artUrl)
+    /**
+     * Art only loads while the surface is open: a 24/7 daemon must not fetch
+     * and decode remote cover URLs on every background track change, and the
+     * crash on 2026-06-12 segfaulted exactly during a closed-surface Spotify
+     * metadata update on this path.
+     */
+    onArtUrlChanged: if (active) coverPair.load(artUrl)
+    onActiveChanged: if (active) coverPair.load(artUrl)
     onTitleChanged: if (playing && active) pulseAnim.restart()
-    Component.onCompleted: coverPair.load(artUrl)
 
     Timer {
         interval: 500
@@ -163,7 +169,7 @@ Item {
         Image {
             id: bleedSrc
             anchors.fill: parent
-            source: root.artUrl
+            source: root.active ? root.artUrl : ""
             sourceSize: Qt.size(128, 128)
             fillMode: Image.PreserveAspectCrop
             asynchronous: true
