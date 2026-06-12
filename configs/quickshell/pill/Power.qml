@@ -120,9 +120,9 @@ Item {
                     width: 50 * root.s
                     height: 50 * root.s
 
-                    property real hold: 0
+                    readonly property real hold: heat.hold
                     readonly property bool isHover: root.hovered === cell.modelData.key
-                    readonly property bool holding: tile.hold > 0.001
+                    readonly property bool holding: heat.holding
                     readonly property bool lit: isHover || tile.holding
                     readonly property color accent: cell.modelData.confirm ? Theme.vermLit : Theme.cream
 
@@ -172,21 +172,9 @@ Item {
                         stroke: 1.9
                     }
 
-                    NumberAnimation {
-                        id: fill
-                        target: tile
-                        property: "hold"
-                        from: 0
-                        to: 1
-                        duration: Motion.heat
-                        onFinished: root.run(cell.modelData)
-                    }
-                    NumberAnimation {
-                        id: cancel
-                        target: tile
-                        property: "hold"
-                        to: 0
-                        duration: 180
+                    HeatHold {
+                        id: heat
+                        onConfirmed: root.run(cell.modelData)
                     }
 
                     MouseArea {
@@ -203,24 +191,11 @@ Item {
                         onExited: {
                             if (root.hovered === cell.modelData.key)
                                 root.hovered = "";
-                            if (cell.modelData.confirm) {
-                                fill.stop();
-                                cancel.restart();
-                            }
+                            if (cell.modelData.confirm)
+                                heat.cancel();
                         }
-                        onPressed: {
-                            if (cell.modelData.confirm) {
-                                cancel.stop();
-                                fill.restart();
-                            }
-                        }
-                        onReleased: {
-                            if (cell.modelData.confirm) {
-                                fill.stop();
-                                if (tile.hold < 1)
-                                    cancel.restart();
-                            }
-                        }
+                        onPressed: if (cell.modelData.confirm) heat.press()
+                        onReleased: if (cell.modelData.confirm) heat.release()
                         onClicked: {
                             if (!cell.modelData.confirm)
                                 root.run(cell.modelData);

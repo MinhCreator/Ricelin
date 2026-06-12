@@ -167,8 +167,8 @@ Item {
             width: 16 * root.s
             height: 16 * root.s
 
-            property real hold: 0
-            readonly property bool holding: hold > 0.001
+            readonly property real hold: wipeHeat.hold
+            readonly property bool holding: wipeHeat.holding
 
             Text {
                 anchors.centerIn: parent
@@ -179,24 +179,9 @@ Item {
                 Behavior on color { ColorAnimation { duration: Motion.fast } }
             }
 
-            NumberAnimation {
-                id: wipeFill
-                target: wipeBtn
-                property: "hold"
-                from: 0
-                to: 1
-                duration: Motion.heat
-                onFinished: {
-                    Cliphist.wipe();
-                    wipeDrain.restart();
-                }
-            }
-            NumberAnimation {
-                id: wipeDrain
-                target: wipeBtn
-                property: "hold"
-                to: 0
-                duration: 180
+            HeatHold {
+                id: wipeHeat
+                onConfirmed: Cliphist.wipe()
             }
 
             MouseArea {
@@ -205,19 +190,9 @@ Item {
                 anchors.margins: -5 * root.s
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
-                onPressed: {
-                    wipeDrain.stop();
-                    wipeFill.restart();
-                }
-                onReleased: {
-                    wipeFill.stop();
-                    if (wipeBtn.hold < 1)
-                        wipeDrain.restart();
-                }
-                onExited: {
-                    wipeFill.stop();
-                    wipeDrain.restart();
-                }
+                onPressed: wipeHeat.press()
+                onReleased: wipeHeat.release()
+                onExited: wipeHeat.cancel()
             }
         }
     }

@@ -131,8 +131,8 @@ Item {
             readonly property real sat: root.slotLerp(root.slotSat, ao)
             readonly property real corner: (8 + 2 * Math.max(0, 1 - ao)) * root.s
 
-            property real hold: 0
-            readonly property bool holding: hold > 0.001
+            readonly property real hold: trashHeat.hold
+            readonly property bool holding: trashHeat.holding
 
             width: root.slotLerp(root.slotW, ao) * root.s
             height: root.slotLerp(root.slotH, ao) * root.s
@@ -202,50 +202,20 @@ Item {
                 Behavior on border.color { ColorAnimation { duration: Motion.fast } }
             }
 
-            NumberAnimation {
-                id: trashFill
-                target: tile
-                property: "hold"
-                from: 0
-                to: 1
-                duration: Motion.heat
-                onFinished: {
-                    Walls.trash(tile.modelData.path);
-                    trashDrain.restart();
-                }
-            }
-            NumberAnimation {
-                id: trashDrain
-                target: tile
-                property: "hold"
-                to: 0
-                duration: 180
+            HeatHold {
+                id: trashHeat
+                tapThreshold: 0.5
+                onConfirmed: Walls.trash(tile.modelData.path)
+                onTapped: root.activate()
             }
 
             MouseArea {
                 anchors.fill: parent
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
-                onPressed: {
-                    if (!tile.focused)
-                        return;
-                    trashDrain.stop();
-                    trashFill.restart();
-                }
-                onReleased: {
-                    if (!tile.focused)
-                        return;
-                    trashFill.stop();
-                    if (tile.hold < 1) {
-                        if (tile.hold < 0.5)
-                            root.activate();
-                        trashDrain.restart();
-                    }
-                }
-                onExited: {
-                    trashFill.stop();
-                    trashDrain.restart();
-                }
+                onPressed: if (tile.focused) trashHeat.press()
+                onReleased: if (tile.focused) trashHeat.release()
+                onExited: trashHeat.cancel()
                 onClicked: if (!tile.focused) root.focusIndex = tile.index
             }
         }
