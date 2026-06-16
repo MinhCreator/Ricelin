@@ -432,7 +432,11 @@ ShellRoot {
     Process {
         id: copyProc
         function run(file) {
-            command = ["sh", "-c", "wl-copy --type image/png < " + JSON.stringify(file) + "; cliphist store < " + JSON.stringify(file)];
+            command = ["sh", "-c",
+                "wl-copy --type image/png < \"$1\"; "
+                + "if [ \"$(stat -c%s \"$1\")\" -ge 4900000 ]; then magick \"$1\" -quality 92 jpeg:- | cliphist store; "
+                + "else cliphist store < \"$1\"; fi",
+                "_", file];
             running = true;
         }
         onExited: (code) => { console.log("rishot: wl-copy exit " + code); Qt.quit(); }
