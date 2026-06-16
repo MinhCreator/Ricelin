@@ -78,6 +78,7 @@ ShellRoot {
         focusedmon: true, focusedmonv2: true,
         openwindow: true, closewindow: true,
         movewindow: true, movewindowv2: true,
+        fullscreen: true,
         monitoradded: true, monitoraddedv2: true, monitorremoved: true
     })
 
@@ -160,6 +161,31 @@ ShellRoot {
             readonly property bool surfaceOpen: surface.length > 0
             readonly property bool modal: surfaceOpen || pill.held
 
+            /**
+             * True while this monitor's active workspace holds a real
+             * fullscreen window. The pill then retracts off the top edge and
+             * the whole layer becomes click-through so fullscreen content owns
+             * the screen. Maximize is suppressed globally, so only true
+             * fullscreen ever flips this.
+             */
+            readonly property bool monFullscreen: {
+                var mons = Hyprland.monitors.values;
+                for (var i = 0; i < mons.length; i++) {
+                    if (mons[i].name === modelData.name) {
+                        var ws = mons[i].activeWorkspace;
+                        var o = ws ? ws.lastIpcObject : null;
+                        return o ? !!o.hasfullscreen : false;
+                    }
+                }
+                return false;
+            }
+
+            onMonFullscreenChanged: if (monFullscreen) {
+                if (root.openMon === modelData.name) root.close();
+                if (root.peekMon === modelData.name) root.peekMon = "";
+                pill.pinned = false;
+            }
+
             screen: modelData
             color: "transparent"
             exclusionMode: ExclusionMode.Ignore
@@ -169,7 +195,8 @@ ShellRoot {
 
             anchors { top: true; left: true; right: true; bottom: true }
 
-            mask: modal ? fullRegion : pillRegion
+            mask: monFullscreen ? hiddenRegion : (modal ? fullRegion : pillRegion)
+            Region { id: hiddenRegion }
             Region {
                 id: pillRegion
                 readonly property real baseW: Math.max(pill.width, pill.targetW)
@@ -230,6 +257,25 @@ ShellRoot {
                     barWindow: overlay
                     surface: overlay.surface
                     forcePinned: root.peekMon === overlay.modelData.name
+
+                    opacity: overlay.monFullscreen ? 0 : 1
+                    Behavior on opacity {
+                        NumberAnimation {
+                            duration: Motion.morph
+                            easing.type: Motion.easeMorph
+                            easing.bezierCurve: Motion.morphCurve
+                        }
+                    }
+                    transform: Translate {
+                        y: overlay.monFullscreen ? -(pill.height + overlay.topGap) : 0
+                        Behavior on y {
+                            NumberAnimation {
+                                duration: Motion.morph
+                                easing.type: Motion.easeMorph
+                                easing.bezierCurve: Motion.morphCurve
+                            }
+                        }
+                    }
 
                     onRequestSurface: (name) => root.toggleSurface(overlay.modelData.name, name)
                     onRequestClose: root.close()
