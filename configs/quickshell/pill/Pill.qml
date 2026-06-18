@@ -459,6 +459,7 @@ Item {
 
                 Text {
                     anchors.fill: parent
+                    visible: Flags.showGlyphs
                     text: kanjiFill.text
                     color: "transparent"
                     font: kanjiFill.font
@@ -469,11 +470,22 @@ Item {
 
                 Text {
                     id: kanjiFill
+                    visible: Flags.showGlyphs
                     text: "時"
                     color: Theme.cream
                     font.family: Theme.fontJp
                     font.weight: Font.Medium
                     font.pixelSize: 15 * pill.s
+                }
+
+                GlyphIcon {
+                    anchors.centerIn: parent
+                    visible: !Flags.showGlyphs
+                    width: 17 * pill.s
+                    height: 17 * pill.s
+                    name: "clock"
+                    color: Theme.cream
+                    stroke: 1.7
                 }
             }
             Text {
