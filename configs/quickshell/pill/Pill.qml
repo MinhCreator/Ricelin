@@ -42,6 +42,13 @@ Item {
     readonly property bool batteryOpen: surface === "battery"
     readonly property bool hasMedia: Mpris.players.values.length > 0
 
+    /**
+     * Subview the link surface should land on when next opened. The wifi glance
+     * sets "wifi" to drill straight to the network list; the inbox glance and
+     * toast set "main". Reset once the surface closes so IPC opens land on main.
+     */
+    property string linkInitialView: "main"
+
     readonly property var netDevices: (typeof Networking !== "undefined" && Networking && Networking.devices) ? Networking.devices.values : []
     readonly property var wifiDev: netDevices.find(function(d) { return d && d.type === DeviceType.Wifi }) || null
     readonly property bool wifiOn: (typeof Networking !== "undefined" && Networking) ? Networking.wifiEnabled : false
@@ -626,7 +633,7 @@ Item {
 
                 Row {
                     anchors.verticalCenter: parent.verticalCenter
-                    visible: wifiIcon.visible || batteryIcon.visible
+                    visible: (pill.wifiDev !== null && pill.wifiOn) || Battery.present
                     spacing: 12 * pill.s
 
                     Item {
@@ -650,7 +657,10 @@ Item {
                             hoverEnabled: true
                             enabled: hover.live
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: pill.requestSurface("link")
+                            onClicked: {
+                                pill.linkInitialView = "wifi";
+                                pill.requestSurface("link");
+                            }
                             onContainsMouseChanged: if (containsMouse) pill.soulTarget = "wifi"
                         }
                     }
@@ -718,7 +728,10 @@ Item {
                         hoverEnabled: true
                         enabled: hover.live
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: pill.requestSurface("link")
+                        onClicked: {
+                            pill.linkInitialView = "main";
+                            pill.requestSurface("link");
+                        }
                         onContainsMouseChanged: if (containsMouse) pill.soulTarget = "inbox"
                     }
                 }
@@ -834,9 +847,12 @@ Item {
         id: link
         s: pill.s
         open: pill.linkOpen
+        initialView: pill.linkInitialView
         morphCloseness: pill.morphCloseness
         onRequestClose: pill.requestClose()
     }
+
+    onLinkOpenChanged: if (!linkOpen) linkInitialView = "main"
 
     BatterySurface {
         id: battery
@@ -889,7 +905,10 @@ Item {
                 s: pill.s
                 live: pill.mode === "toast"
                 notif: Notifs.popups.length > 0 ? Notifs.popups[Notifs.popups.length - 1] : null
-                onOpenCenter: pill.requestSurface("link")
+                onOpenCenter: {
+                    pill.linkInitialView = "main";
+                    pill.requestSurface("link");
+                }
             }
 
             Text {

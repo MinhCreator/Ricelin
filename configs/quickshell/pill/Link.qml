@@ -26,6 +26,13 @@ PillSurface {
 
     property string subview: "main"
 
+    /**
+     * Subview to land on the next time the surface opens. The pill sets this from
+     * the glance that opened the surface (wifi → "wifi", inbox → "main") so the
+     * wifi glance drills straight to the network list past the connectivity rows.
+     */
+    property string initialView: "main"
+
     readonly property real desiredW: (subview === "wifi" ? 272 : subview === "bt" ? 286 : 330) * s
 
     readonly property point emberPoint: {
@@ -132,7 +139,7 @@ PillSurface {
 
     onActiveChanged: {
         if (active) {
-            subview = "main";
+            subview = (initialView === "wifi" && wifiDev) ? "wifi" : "main";
             seenTimer.restart();
         } else {
             seenTimer.stop();

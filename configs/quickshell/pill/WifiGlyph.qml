@@ -5,9 +5,10 @@ import "Singletons"
 /**
  * Hand-drawn wifi glyph: three concentric arcs over a base dot, the lit-arc
  * count standing in for signal strength (>0.66 lights all three, >0.33 two,
- * >0 one). Lit strokes use iconDim, unlit use threadBg. When `!on` the arcs go
- * faint and a diagonal slash crosses the glyph. Paths sit centred in a 24x24
- * space scaled to the item; every weight scales by `s`.
+ * >0 one). Lit strokes use iconDim, unlit a dim icon tint, so a radio-on but
+ * unconnected glyph reads as a dim fan. When the radio is off the glyph fades
+ * further and a diagonal slash crosses it. Paths sit centred in a 24x24 space
+ * scaled to the item; every weight scales by `s`.
  */
 Item {
     id: root
@@ -20,7 +21,7 @@ Item {
     implicitHeight: 17 * s
 
     readonly property int litCount: !on ? 0 : (level > 0.66 ? 3 : (level > 0.33 ? 2 : (level > 0 ? 1 : 0)))
-    readonly property color offColor: on ? Theme.threadBg : Qt.alpha(Theme.threadBg, 0.45)
+    readonly property color offColor: on ? Qt.alpha(Theme.iconDim, 0.4) : Qt.alpha(Theme.iconDim, 0.18)
 
     Shape {
         id: arcs
@@ -63,7 +64,7 @@ Item {
         ShapePath {
             strokeColor: root.on ? "transparent" : Theme.faint
             fillColor: "transparent"
-            strokeWidth: 1.8 * root.s
+            strokeWidth: 1.7 * root.s
             capStyle: ShapePath.RoundCap
             scale: Qt.size(arcs.u, arcs.u)
             PathSvg { path: "M4 3 L20 19" }

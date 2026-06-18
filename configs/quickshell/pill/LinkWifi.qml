@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Controls
+import Quickshell
 import Quickshell.Io
 import Quickshell.Networking
 import "Singletons"
@@ -28,6 +29,9 @@ Item {
     readonly property var netsSorted: nets.slice().sort(function(a, b) {
         return ((b ? b.signalStrength : 0) || 0) - ((a ? a.signalStrength : 0) || 0)
     })
+    readonly property var activeNet: nets.find(function(n) { return n && n.connected }) || null
+    readonly property string statusText: !wifiOn ? "Off"
+        : (activeNet ? (activeNet.name || "Connected") : "Not connected")
 
     property var securityMap: ({})
     property var knownProfiles: ({})
@@ -46,10 +50,9 @@ Item {
     property string hsDraft: ""
 
     /**
-     * Draft of the password being typed for `expandedSsid`. Lives on the root
-     * because the Repeater model is a fresh array on every NM rescan, which
-     * tears down and recreates the delegate mid-typing. The field restores
-     * itself from this draft when rebuilt.
+     * Draft of the password being typed for `expandedSsid`. Lives on the root so
+     * the field can restore itself from the draft if the keyed list model swaps
+     * the delegate's network object under it on a rescan.
      */
     property string pwDraft: ""
     property string pendingPw: ""
@@ -81,21 +84,26 @@ Item {
     }
 
     /**
-     * Click dispatch for a network row: disconnect when connected, connect
-     * known or open networks directly, otherwise expand the inline password
-     * row under that network.
+     * Click dispatch for a network row. A connected or saved network expands the
+     * inline confirm row (disconnect/connect plus forget) rather than acting at
+     * once; an open unknown network connects directly; an unknown secured network
+     * expands the password row. Tapping the open row again collapses it.
      */
     function activateNetwork(net) {
         if (!net)
             return;
         var ssid = net.name || "";
-        if (net.connected) {
-            if (typeof net.disconnect === "function")
-                net.disconnect();
+        if (expandedSsid === ssid && ssid.length) {
+            expandedSsid = "";
             return;
         }
-        var secKnown = securityMap[ssid] !== undefined;
-        if (knownProfiles[ssid] === true || (secKnown && !isSecured(ssid))) {
+        if (net.connected || knownProfiles[ssid] === true) {
+            connectFailed = false;
+            pwDraft = "";
+            expandedSsid = ssid;
+            return;
+        }
+        if (!isSecured(ssid)) {
             expandedSsid = "";
             if (typeof net.connect === "function")
                 net.connect();
@@ -105,6 +113,41 @@ Item {
         connectFailed = false;
         pwDraft = "";
         expandedSsid = ssid;
+    }
+
+    /**
+     * Connects a saved profile from its confirm row. Known profiles connect by
+     * name through the device so no password prompt is needed.
+     */
+    function connectKnown(net) {
+        if (!net)
+            return;
+        expandedSsid = "";
+        if (typeof net.connect === "function")
+            net.connect();
+        refresh();
+    }
+
+    function disconnectNetwork(net) {
+        if (!net)
+            return;
+        expandedSsid = "";
+        if (typeof net.disconnect === "function")
+            net.disconnect();
+        refresh();
+    }
+
+    /**
+     * Drops the saved connection profile for `ssid`. The SSID is passed as its
+     * own argv element so an odd character can neither break nor inject the
+     * command. The list refreshes once nmcli exits.
+     */
+    function forgetNetwork(ssid) {
+        if (forgetProc.running || !ssid.length)
+            return;
+        expandedSsid = "";
+        forgetProc.command = ["nmcli", "connection", "delete", "id", ssid];
+        forgetProc.running = true;
     }
 
     /**
@@ -349,12 +392,33 @@ Item {
         onExited: root.refresh()
     }
 
+    /**
+     * Drops a saved profile on Forget. The list refreshes on exit so the row
+     * loses its known/connected state and its lock falls back to dim.
+     */
+    Process {
+        id: forgetProc
+        onExited: root.refresh()
+    }
+
     onNetsChanged: if (active) secRefresh.restart()
 
     Timer {
         id: secRefresh
         interval: 1200
         onTriggered: if (root.active) secProc.running = true
+    }
+
+    /**
+     * Keys the network list by SSID so a rescan diffs into the existing rows
+     * rather than tearing every delegate down and rebuilding it. Delegates keep
+     * their identity across scans, so the inline confirm or password row stays
+     * open under the network the user tapped.
+     */
+    ScriptModel {
+        id: netModel
+        objectProp: "name"
+        values: root.netsSorted
     }
 
     Item {
@@ -400,6 +464,16 @@ Item {
                 font.weight: Font.DemiBold
                 font.capitalization: Font.AllUppercase
                 font.letterSpacing: 1.6 * root.s
+            }
+
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: "· " + root.statusText
+                color: root.activeNet ? Theme.vermLit : Theme.faint
+                font.family: Theme.font
+                font.pixelSize: 9.5 * root.s
+                font.weight: Font.Medium
+                elide: Text.ElideRight
             }
         }
 
@@ -470,7 +544,7 @@ Item {
         anchors.topMargin: 8 * root.s
         anchors.left: parent.left
         anchors.right: parent.right
-        height: root.wifiOn ? Math.min(Math.max(netCol.implicitHeight, 26 * root.s), 200 * root.s) : 0
+        height: root.wifiOn ? Math.min(Math.max(netCol.implicitHeight, 26 * root.s), 280 * root.s) : 0
 
         Text {
             anchors.centerIn: parent
@@ -494,7 +568,7 @@ Item {
                 spacing: 2 * root.s
 
                 Repeater {
-                    model: root.netsSorted
+                    model: netModel
 
                     Column {
                         id: netItem
@@ -502,7 +576,10 @@ Item {
                         readonly property string ssid: (modelData && modelData.name) ? modelData.name : ""
                         readonly property bool isActive: modelData ? modelData.connected === true : false
                         readonly property bool secured: root.isSecured(ssid)
+                        readonly property bool known: root.knownProfiles[ssid] === true
                         readonly property bool expanded: ssid.length > 0 && root.expandedSsid === ssid
+                        readonly property bool confirming: expanded && (isActive || known)
+                        readonly property bool asking: expanded && !confirming
                         width: netCol.width
                         spacing: 2 * root.s
 
@@ -512,8 +589,8 @@ Item {
                             pwField.forceActiveFocus();
                         }
 
-                        onExpandedChanged: if (expanded) Qt.callLater(syncPwField)
-                        Component.onCompleted: if (expanded) Qt.callLater(syncPwField)
+                        onExpandedChanged: if (asking) Qt.callLater(syncPwField)
+                        Component.onCompleted: if (asking) Qt.callLater(syncPwField)
 
                         Rectangle {
                             width: parent.width
@@ -551,14 +628,19 @@ Item {
                                 anchors.verticalCenter: parent.verticalCenter
                                 spacing: 7 * root.s
 
-                                GlyphIcon {
+                                Item {
                                     anchors.verticalCenter: parent.verticalCenter
+                                    anchors.verticalCenterOffset: -1.4 * root.s
                                     visible: netItem.secured
-                                    width: 11 * root.s
-                                    height: 11 * root.s
-                                    name: "lock-round"
-                                    color: Theme.iconDim
-                                    stroke: 1.8
+                                    width: 14 * root.s
+                                    height: 14 * root.s
+
+                                    GlyphIcon {
+                                        anchors.fill: parent
+                                        name: "lock-outline"
+                                        color: netItem.isActive ? Theme.vermLit : Theme.iconDim
+                                        stroke: 1.9
+                                    }
                                 }
 
                                 WifiGlyph {
@@ -573,7 +655,99 @@ Item {
                         }
 
                         Item {
-                            visible: netItem.expanded
+                            visible: netItem.confirming
+                            width: parent.width
+                            height: 30 * root.s
+
+                            Text {
+                                anchors.left: parent.left
+                                anchors.leftMargin: 10 * root.s
+                                anchors.right: confirmBtns.left
+                                anchors.rightMargin: 8 * root.s
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: netItem.isActive ? "Connected" : "Saved network"
+                                color: Theme.faint
+                                font.family: Theme.font
+                                font.pixelSize: 9.5 * root.s
+                                font.weight: Font.Medium
+                                elide: Text.ElideRight
+                            }
+
+                            Row {
+                                id: confirmBtns
+                                anchors.right: parent.right
+                                anchors.rightMargin: 10 * root.s
+                                anchors.verticalCenter: parent.verticalCenter
+                                spacing: 6 * root.s
+
+                                Rectangle {
+                                    id: primaryBtn
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: primaryLabel.implicitWidth + 20 * root.s
+                                    height: 22 * root.s
+                                    radius: 7 * root.s
+                                    color: primaryArea.containsMouse ? Theme.tileBg : "transparent"
+                                    border.width: 1
+                                    border.color: primaryArea.containsMouse ? Theme.vermDim : Theme.border
+
+                                    Text {
+                                        id: primaryLabel
+                                        anchors.centerIn: parent
+                                        text: netItem.isActive ? "Disconnect" : "Connect"
+                                        color: Theme.cream
+                                        font.family: Theme.font
+                                        font.pixelSize: 10 * root.s
+                                        font.weight: Font.DemiBold
+                                        font.letterSpacing: 0.3 * root.s
+                                    }
+
+                                    MouseArea {
+                                        id: primaryArea
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: netItem.isActive
+                                            ? root.disconnectNetwork(netItem.modelData)
+                                            : root.connectKnown(netItem.modelData)
+                                    }
+                                }
+
+                                Rectangle {
+                                    id: forgetBtn
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: forgetLabel.implicitWidth + 20 * root.s
+                                    height: 22 * root.s
+                                    radius: 7 * root.s
+                                    color: forgetArea.containsMouse
+                                        ? Qt.rgba(Theme.verm.r, Theme.verm.g, Theme.verm.b, 0.2)
+                                        : Qt.rgba(Theme.verm.r, Theme.verm.g, Theme.verm.b, 0.12)
+                                    border.width: 1
+                                    border.color: Qt.rgba(Theme.vermLit.r, Theme.vermLit.g, Theme.vermLit.b, 0.45)
+
+                                    Text {
+                                        id: forgetLabel
+                                        anchors.centerIn: parent
+                                        text: "Forget"
+                                        color: Theme.vermLit
+                                        font.family: Theme.font
+                                        font.pixelSize: 10 * root.s
+                                        font.weight: Font.DemiBold
+                                        font.letterSpacing: 0.3 * root.s
+                                    }
+
+                                    MouseArea {
+                                        id: forgetArea
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: root.forgetNetwork(netItem.ssid)
+                                    }
+                                }
+                            }
+                        }
+
+                        Item {
+                            visible: netItem.asking
                             width: parent.width
                             height: 30 * root.s
 
@@ -607,14 +781,14 @@ Item {
 
                                 Rectangle {
                                     anchors.verticalCenter: parent.verticalCenter
-                                    visible: root.connecting && netItem.expanded
+                                    visible: root.connecting && netItem.asking
                                     width: 4 * root.s
                                     height: 4 * root.s
                                     radius: width / 2
                                     color: Theme.flameGlow
 
                                     SequentialAnimation on opacity {
-                                        running: root.connecting && netItem.expanded
+                                        running: root.connecting && netItem.asking
                                         loops: Animation.Infinite
                                         NumberAnimation { from: 0.35; to: 1; duration: Motion.pulse; easing.type: Easing.InOutSine }
                                         NumberAnimation { from: 1; to: 0.35; duration: Motion.pulse; easing.type: Easing.InOutSine }
@@ -641,7 +815,7 @@ Item {
                         }
 
                         Text {
-                            visible: netItem.expanded && root.connectFailed
+                            visible: netItem.asking && root.connectFailed
                             text: "Connection failed"
                             color: Theme.vermLit
                             font.family: Theme.font
