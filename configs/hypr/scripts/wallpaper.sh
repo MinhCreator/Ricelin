@@ -88,5 +88,5 @@ awww img "$pic" \
 mkdir -p "$(dirname "$STATE")"
 printf '%s\n' "$pic" > "$STATE"
 
-wallust run "$pic" >/dev/null 2>&1 || true
+python3 "$(dirname "$0")/wallcolors.py" "$pic" >/dev/null 2>&1 || true
 hyprctl reload >/dev/null 2>&1 || true

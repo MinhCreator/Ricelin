@@ -47,3 +47,4 @@ docs/
 /configs/mount-disks.sh
 /configs/grub/probe-sda4.sh
 /configs/grub/10_ricelin
+__pycache__/
