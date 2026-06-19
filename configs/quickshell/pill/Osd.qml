@@ -20,6 +20,7 @@ Item {
     property bool lastPlaying: false
     property real brightness: 0
     property int lastBrightness: -1
+    property bool recordStarted: false
 
     readonly property var sink: Pipewire.defaultAudioSink
     readonly property bool muted: sink && sink.audio ? sink.audio.muted : false
@@ -47,7 +48,7 @@ Item {
         return a.length > 0 ? t + " — " + a : t;
     }
 
-    readonly property real desiredW: kind === "track" ? 332 * s : 248 * s
+    readonly property real desiredW: kind === "track" ? 332 * s : (kind === "record" ? 256 * s : 248 * s)
     readonly property real desiredH: kind === "track" ? 56 * s : 44 * s
 
     function trackEvent() {
@@ -70,7 +71,7 @@ Item {
         }
         kind = which;
         flashing = true;
-        hideTimer.interval = which === "battery" ? 2000 : 1400;
+        hideTimer.interval = (which === "battery" || which === "record") ? 2000 : 1400;
         hideTimer.restart();
     }
 
@@ -133,9 +134,17 @@ Item {
         }
     }
 
+    Connections {
+        target: ScreenRec
+        function onRecordingChanged() {
+            root.recordStarted = ScreenRec.recording;
+            root.flash("record");
+        }
+    }
+
     Process {
         id: brightMonitor
-        command: ["sh", "-c", "dev=$(ls /sys/class/backlight 2>/dev/null | head -n1); [ -n \"$dev\" ] || exit 0; max=$(cat /sys/class/backlight/$dev/max_brightness); last=\"\"; while true; do val=$(cat /sys/class/backlight/$dev/brightness); if [ \"$val\" != \"$last\" ]; then echo \"$(( val * 100 / max ))\"; last=\"$val\"; fi; sleep 0.15; done"]
+        command: ["sh", "-c", "dev=$(ls /sys/class/backlight 2>/dev/null | head -n1); [ -n \"$dev\" ] || exit 0; max=$(cat /sys/class/backlight/$dev/max_brightness); last=\"\"; while true; do val=$(cat /sys/class/backlight/$dev/brightness); if [ \"$val\" != \"$last\" ]; then echo \"$(( val * 100 / max ))\"; last=\"$val\"; fi; sleep 0.4; done"]
         running: true
         stdout: SplitParser {
             onRead: (line) => {
@@ -400,6 +409,45 @@ Item {
                     }
                 }
             }
+        }
+    }
+
+    Item {
+        id: recordRow
+        anchors.fill: parent
+        opacity: root.kind === "record" ? 1 : 0
+        visible: opacity > 0.01
+        Behavior on opacity { NumberAnimation { duration: 150 } }
+
+        Rectangle {
+            id: recGlyph
+            anchors.left: parent.left
+            anchors.verticalCenter: parent.verticalCenter
+            width: 13 * root.s
+            height: 13 * root.s
+            radius: width / 2
+            color: root.recordStarted ? Theme.verm : Theme.dim
+
+            SequentialAnimation on opacity {
+                running: root.recordStarted && root.kind === "record"
+                loops: Animation.Infinite
+                NumberAnimation { to: 0.4; duration: 500; easing.type: Easing.InOutSine }
+                NumberAnimation { to: 1; duration: 500; easing.type: Easing.InOutSine }
+            }
+        }
+
+        Text {
+            anchors.left: recGlyph.right
+            anchors.leftMargin: 13 * root.s
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            text: root.recordStarted ? "Recording started" : "Recording stopped"
+            color: Theme.cream
+            font.family: Theme.font
+            font.pixelSize: 11.5 * root.s
+            font.weight: Font.DemiBold
+            elide: Text.ElideRight
+            maximumLineCount: 1
         }
     }
 }

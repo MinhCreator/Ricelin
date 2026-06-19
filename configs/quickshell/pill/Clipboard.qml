@@ -96,6 +96,7 @@ PillSurface {
 
     SearchField {
         id: search
+        z: 5
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
@@ -126,6 +127,13 @@ PillSurface {
 
             readonly property real hold: wipeHeat.hold
             readonly property bool holding: wipeHeat.holding
+
+            Tooltip {
+                s: root.s
+                placement: "below"
+                title: "hold to wipe"
+                show: wipeArea.containsMouse || wipeBtn.holding
+            }
 
             Text {
                 anchors.centerIn: parent

@@ -66,6 +66,17 @@ Item {
         }
     }
 
+    Rectangle {
+        anchors.left: field.left
+        anchors.right: field.right
+        anchors.top: field.bottom
+        anchors.topMargin: 2 * root.s
+        height: 1
+        color: Theme.faint
+        opacity: field.activeFocus ? 0.7 : 0
+        Behavior on opacity { NumberAnimation { duration: Motion.standard; easing.type: Motion.easeStandard } }
+    }
+
     Text {
         id: counter
         anchors.verticalCenter: parent.verticalCenter
