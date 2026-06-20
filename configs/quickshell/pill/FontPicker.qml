@@ -33,7 +33,7 @@ SettingsSurface {
     readonly property var families: {
         var seen = {};
         var out = [];
-        var all = Qt.fontFamilies();
+        var all = Theme.fontFamilies;
         for (var i = 0; i < all.length; i++) {
             var fam = all[i];
             if (!fam || fam.length === 0 || fam.charAt(0) === ".")
@@ -55,6 +55,11 @@ SettingsSurface {
 
     function pick(family) {
         Flags.uiFont = family;
+    }
+
+    onActiveChanged: if (!active) {
+        query = "";
+        searchField.text = "";
     }
 
     Column {
