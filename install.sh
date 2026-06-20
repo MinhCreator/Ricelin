@@ -106,6 +106,30 @@ ESC=$(printf '\033')
 CR=$(printf '\r')
 NL=$(printf '\n')
 
+# A vermilion accent plus bold and dim, the rest plain. Honour NO_COLOR. The menu
+# writes to the terminal device, which is always a real tty, so colour is safe.
+if [ -z "${NO_COLOR:-}" ]; then
+	C_ACCENT=$(printf '\033[38;5;209m')
+	C_BOLD=$(printf '\033[1m')
+	C_DIM=$(printf '\033[2m')
+	C_RST=$(printf '\033[0m')
+else
+	C_ACCENT=''
+	C_BOLD=''
+	C_DIM=''
+	C_RST=''
+fi
+
+MENU_TTY=''
+MENU_STTY=''
+
+# Put the terminal back into its normal line mode. Called on a clean menu exit
+# and from the interrupt trap so Ctrl+C never leaves a raw terminal behind.
+restore_tty() {
+	[ -n "$MENU_TTY" ] && [ -n "$MENU_STTY" ] && stty "$MENU_STTY" <"$MENU_TTY" 2>/dev/null
+	MENU_STTY=''
+}
+
 # Flip the option the cursor sits on.
 toggle_current() {
 	case "$MENU_CUR" in
@@ -115,7 +139,8 @@ toggle_current() {
 	esac
 }
 
-# Draw the three option rows: a > cursor on the active row, [x]/[ ] tick boxes.
+# Draw the three option rows: a coloured > cursor on the active row, [x]/[ ] tick
+# boxes. Colour escapes sit outside the padded name field so columns stay aligned.
 draw_rows() {
 	_t="$1"
 	_i=0
@@ -128,11 +153,15 @@ draw_rows() {
 		1) _on=$WANT_SDDM ;;
 		2) _on=$WANT_SERVICES ;;
 		esac
-		_mark='[ ]'
-		[ "$_on" -eq 1 ] && _mark='[x]'
-		_ptr='  '
-		[ "$_i" -eq "$MENU_CUR" ] && _ptr='> '
-		printf '\033[2K  %s%s %-9s %s\n' "$_ptr" "$_mark" "${_row%%|*}" "${_row#*|}" >"$_t"
+		if [ "$_on" -eq 1 ]; then _mark="${C_ACCENT}[x]${C_RST}"; else _mark='[ ]'; fi
+		if [ "$_i" -eq "$MENU_CUR" ]; then
+			printf '\033[2K  %s>%s %s %s%-9s%s %s%s%s\n' \
+				"$C_ACCENT" "$C_RST" "$_mark" "$C_BOLD" "${_row%%|*}" "$C_RST" \
+				"$C_DIM" "${_row#*|}" "$C_RST" >"$_t"
+		else
+			printf '\033[2K    %s %-9s %s%s%s\n' \
+				"$_mark" "${_row%%|*}" "$C_DIM" "${_row#*|}" "$C_RST" >"$_t"
+		fi
 		_i=$((_i + 1))
 	done
 }
@@ -145,11 +174,11 @@ read_key() {
 }
 
 # Number-typed fallback when raw key mode is unavailable: print the list, read a
-# number to toggle, reprint, until enter.
+# number to toggle, reprint, until enter (install) or q (cancel).
 number_menu() {
 	t="$1"
 	while :; do
-		printf '\n  Ricelin extras  (type a number to toggle, Enter to install):\n' >"$t"
+		printf '\n  Ricelin extras  (type a number to toggle, Enter to continue, q to cancel):\n' >"$t"
 		printf '    %s 1) full      daily apps (dolphin, keepassxc, zathura, imv)\n' "$([ "$WANT_FULL" -eq 1 ] && echo '[x]' || echo '[ ]')" >"$t"
 		printf '    %s 2) sddm      torii SDDM login theme\n' "$([ "$WANT_SDDM" -eq 1 ] && echo '[x]' || echo '[ ]')" >"$t"
 		printf '    %s 3) services  enable NetworkManager + bluetooth\n' "$([ "$WANT_SERVICES" -eq 1 ] && echo '[x]' || echo '[ ]')" >"$t"
@@ -159,16 +188,20 @@ number_menu() {
 		1) WANT_FULL=$((1 - WANT_FULL)) ;;
 		2) WANT_SDDM=$((1 - WANT_SDDM)) ;;
 		3) WANT_SERVICES=$((1 - WANT_SERVICES)) ;;
+		[qQ]*)
+			say "Cancelled."
+			exit 0
+			;;
 		"") break ;;
 		*) ;;
 		esac
 	done
 }
 
-# Arrow-key checklist (OpenClaw-style): up/down move the cursor, space ticks the
-# row, enter installs. Numbers 1-3 also toggle. Raw key mode via stty; if that
-# is not available it falls back to typing numbers. Both read the terminal so
-# they work through a pipe. Sets WANT_FULL / WANT_SDDM / WANT_SERVICES.
+# Arrow-key checklist: up/down move the cursor, space ticks the row, enter goes
+# on to the confirm step, q cancels. Numbers 1-3 also toggle. Raw key mode via
+# stty; without it we fall back to typing numbers. Both read the terminal so they
+# work through a pipe. Sets WANT_FULL / WANT_SDDM / WANT_SERVICES.
 choose_extras() {
 	t="$1"
 	_old=$(stty -g <"$t" 2>/dev/null) || {
@@ -176,8 +209,11 @@ choose_extras() {
 		return 0
 	}
 	MENU_CUR=0
-	printf '\n  Ricelin extras  (up/down move, space ticks, enter installs):\n' >"$t"
+	printf '\n  %s%sRicelin%s  Hyprland shell installer\n' "$C_BOLD" "$C_ACCENT" "$C_RST" >"$t"
+	printf '  %sup/down move   space tick   enter continue   q cancel%s\n\n' "$C_DIM" "$C_RST" >"$t"
 	draw_rows "$t"
+	MENU_TTY="$t"
+	MENU_STTY="$_old"
 	stty -echo -icanon min 1 time 0 <"$t" 2>/dev/null
 	while :; do
 		_key=$(read_key "$t")
@@ -195,13 +231,18 @@ choose_extras() {
 			2) WANT_SDDM=$((1 - WANT_SDDM)) ;;
 			3) WANT_SERVICES=$((1 - WANT_SERVICES)) ;;
 			"$CR" | "$NL") break ;;
-			q | Q) break ;;
+			q | Q)
+				restore_tty
+				printf '\n' >"$t"
+				say "Cancelled."
+				exit 0
+				;;
 			esac
 		fi
 		printf '\033[3A' >"$t"
 		draw_rows "$t"
 	done
-	stty "$_old" <"$t" 2>/dev/null
+	restore_tty
 	printf '\n' >"$t"
 }
 
@@ -216,6 +257,28 @@ interactive_select() {
 		return 0
 	}
 	choose_extras "$t"
+}
+
+# Last gate before anything is installed: list exactly what will happen and wait
+# for an explicit enter. q (or n) cancels with nothing changed.
+confirm_install() {
+	[ "$SELECTION_GIVEN" -eq 1 ] && return 0
+	[ "$NO_PROMPT" -eq 1 ] && return 0
+	t="$(tty_dev)"
+	[ -n "$t" ] || return 0
+	printf '\n  %sReady to install%s\n' "$C_BOLD" "$C_RST" >"$t"
+	printf '    %s+%s core      Hyprland shell, deps, rishot\n' "$C_ACCENT" "$C_RST" >"$t"
+	[ "$WANT_FULL" -eq 1 ] && printf '    %s+%s full      daily apps (dolphin, keepassxc, zathura, imv)\n' "$C_ACCENT" "$C_RST" >"$t"
+	[ "$WANT_SDDM" -eq 1 ] && printf '    %s+%s sddm      torii SDDM login theme\n' "$C_ACCENT" "$C_RST" >"$t"
+	[ "$WANT_SERVICES" -eq 1 ] && printf '    %s+%s services  NetworkManager + bluetooth\n' "$C_ACCENT" "$C_RST" >"$t"
+	printf '\n  %sEnter%s to install   %sq%s to cancel\n  > ' "$C_BOLD" "$C_RST" "$C_BOLD" "$C_RST" >"$t"
+	read -r _a <"$t" || _a=""
+	case "$_a" in
+	[qQnN]*)
+		say "Cancelled."
+		exit 0
+		;;
+	esac
 }
 
 detect_pm() {
@@ -523,15 +586,15 @@ main() {
 		exit 0
 	fi
 
-	say ""
-	say "  Ricelin"
-	say "  Hyprland shell installer"
-	say ""
+	trap 'restore_tty; printf "\n"; say "Cancelled."; exit 130' INT TERM
 
 	pm="$(detect_pm)"
-	say "Package manager: $pm"
 
 	interactive_select
+	confirm_install
+
+	say ""
+	say "Package manager: $pm"
 
 	if [ "$SKIP_DEPS" -eq 0 ]; then
 		if [ "$pm" = "pacman" ]; then
