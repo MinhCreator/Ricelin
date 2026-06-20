@@ -6,12 +6,14 @@ import "Singletons"
 /**
  * Labelled dropdown for the display surface: a left caption, a value chip styled
  * like the segmented control's pill, and an inset panel that grows below when open.
- * The panel's height animates with the surface morph so the expand never paints a
- * bare intermediate, and stays clipped to its animating bounds. Picking emits
- * picked(value) and the parent closes it; tapping the chip emits requestToggle so
- * the surface keeps only one dropdown open at a time. Resolution labels carry a "×"
- * the picker renders as a smaller, dimmer separator in the shell font, so the digits
- * never shift to a fallback face.
+ * The panel snaps to its open size and contributes that to implicitHeight at once,
+ * so the pill body's height Behavior is the only animator: the body morph alone
+ * reveals the panel, and the surface clips anything past the body's current bottom,
+ * so an opaque panel rectangle can never paint outside the still-growing body.
+ * Picking emits picked(value) and the parent closes it; tapping the chip emits
+ * requestToggle so the surface keeps only one dropdown open at a time. Resolution
+ * labels carry a "×" the picker renders as a smaller, dimmer separator in the shell
+ * font, so the digits never shift to a fallback face.
  */
 Item {
     id: pick
@@ -36,17 +38,7 @@ Item {
     readonly property real listH: pick.open ? Math.min(options.length * 24 * pick.s + 4 * pick.s, 150 * pick.s) : 0
 
     width: parent ? parent.width : 0
-    implicitHeight: pick.rowH + pick.gapAnim + pick.listAnim
-
-    property real listAnim: pick.listH
-    Behavior on listAnim {
-        NumberAnimation { duration: Motion.morph; easing.type: Motion.easeMorph; easing.bezierCurve: Motion.morphCurve }
-    }
-
-    property real gapAnim: pick.open ? pick.gap : 0
-    Behavior on gapAnim {
-        NumberAnimation { duration: Motion.morph; easing.type: Motion.easeMorph; easing.bezierCurve: Motion.morphCurve }
-    }
+    implicitHeight: pick.rowH + (pick.open ? pick.gap + pick.listH : 0)
 
     Row {
         id: head
@@ -105,13 +97,12 @@ Item {
 
     Rectangle {
         anchors.top: head.bottom
-        anchors.topMargin: pick.gapAnim
+        anchors.topMargin: pick.open ? pick.gap : 0
         anchors.left: parent.left
         anchors.leftMargin: 72 * pick.s
         anchors.right: parent.right
-        height: pick.listAnim
-        visible: opacity > 0.01
-        opacity: Math.min(1, pick.listAnim / Math.min(pick.options.length * 24 * pick.s + 4 * pick.s, 150 * pick.s))
+        height: pick.listH
+        visible: pick.open
         clip: true
         radius: 9 * pick.s
         color: Theme.cardBot
