@@ -25,6 +25,14 @@ SettingsSurface {
     readonly property string resetLabel: "System default (Inter)"
 
     /**
+     * The only Noto families kept in the list. Noto ships hundreds of per-script
+     * variants (Noto Sans Arabic, Noto Serif Devanagari and the like) that flood
+     * the picker and never serve as a UI font, so every other Noto family is
+     * dropped, trimming the list from ~690 entries to ~120.
+     */
+    readonly property var notoKeep: ["Noto Sans", "Noto Serif", "Noto Sans Mono"]
+
+    /**
      * Deduped, sorted family list with the reset entry prepended, then narrowed by
      * a case-insensitive substring on the live query. The reset row carries an
      * empty family so a click clears Flags.uiFont; the search never hides it, so the
@@ -37,6 +45,8 @@ SettingsSurface {
         for (var i = 0; i < all.length; i++) {
             var fam = all[i];
             if (!fam || fam.length === 0 || fam.charAt(0) === ".")
+                continue;
+            if (fam.indexOf("Noto ") === 0 && root.notoKeep.indexOf(fam) < 0)
                 continue;
             if (seen[fam] === true)
                 continue;
