@@ -102,20 +102,57 @@ tty_dev() {
 	fi
 }
 
-# Render a tick box for the toggle list: [x] when on, [ ] when off.
-box() { [ "$1" -eq 1 ] && printf '[x]' || printf '[ ]'; }
+ESC=$(printf '\033')
+CR=$(printf '\r')
+NL=$(printf '\n')
 
-# Inline terminal checklist: print the three options with tick boxes, read a
-# number to toggle one, reprint, repeat until the user hits enter. Plain stdio,
-# no full-screen TUI and no extra dependency; reads the terminal so it works
-# through a pipe. Sets WANT_FULL / WANT_SDDM / WANT_SERVICES.
-choose_extras() {
+# Flip the option the cursor sits on.
+toggle_current() {
+	case "$MENU_CUR" in
+	0) WANT_FULL=$((1 - WANT_FULL)) ;;
+	1) WANT_SDDM=$((1 - WANT_SDDM)) ;;
+	2) WANT_SERVICES=$((1 - WANT_SERVICES)) ;;
+	esac
+}
+
+# Draw the three option rows: a > cursor on the active row, [x]/[ ] tick boxes.
+draw_rows() {
+	_t="$1"
+	_i=0
+	for _row in \
+		"full|daily apps (dolphin, keepassxc, zathura, imv)" \
+		"sddm|torii SDDM login theme" \
+		"services|enable NetworkManager + bluetooth"; do
+		case "$_i" in
+		0) _on=$WANT_FULL ;;
+		1) _on=$WANT_SDDM ;;
+		2) _on=$WANT_SERVICES ;;
+		esac
+		_mark='[ ]'
+		[ "$_on" -eq 1 ] && _mark='[x]'
+		_ptr='  '
+		[ "$_i" -eq "$MENU_CUR" ] && _ptr='> '
+		printf '\033[2K  %s%s %-9s %s\n' "$_ptr" "$_mark" "${_row%%|*}" "${_row#*|}" >"$_t"
+		_i=$((_i + 1))
+	done
+}
+
+# Read a single keypress from the terminal, preserving the byte (the printf x
+# trick stops command substitution from eating a trailing CR/newline).
+read_key() {
+	_k=$(dd bs=1 count=1 2>/dev/null <"$1"; printf x)
+	printf '%s' "${_k%x}"
+}
+
+# Number-typed fallback when raw key mode is unavailable: print the list, read a
+# number to toggle, reprint, until enter.
+number_menu() {
 	t="$1"
 	while :; do
 		printf '\n  Ricelin extras  (type a number to toggle, Enter to install):\n' >"$t"
-		printf '    %s 1) full      daily apps (dolphin, keepassxc, zathura, imv)\n' "$(box "$WANT_FULL")" >"$t"
-		printf '    %s 2) sddm      torii SDDM login theme\n' "$(box "$WANT_SDDM")" >"$t"
-		printf '    %s 3) services  enable NetworkManager + bluetooth\n' "$(box "$WANT_SERVICES")" >"$t"
+		printf '    %s 1) full      daily apps (dolphin, keepassxc, zathura, imv)\n' "$([ "$WANT_FULL" -eq 1 ] && echo '[x]' || echo '[ ]')" >"$t"
+		printf '    %s 2) sddm      torii SDDM login theme\n' "$([ "$WANT_SDDM" -eq 1 ] && echo '[x]' || echo '[ ]')" >"$t"
+		printf '    %s 3) services  enable NetworkManager + bluetooth\n' "$([ "$WANT_SERVICES" -eq 1 ] && echo '[x]' || echo '[ ]')" >"$t"
 		printf '  > ' >"$t"
 		read -r _ans <"$t" || _ans=""
 		case "$_ans" in
@@ -128,9 +165,48 @@ choose_extras() {
 	done
 }
 
-# Guided selection. Shows the inline checklist when a terminal is available,
-# otherwise takes the QuickStart defaults. Skipped entirely when a flag already
-# made the choice.
+# Arrow-key checklist (OpenClaw-style): up/down move the cursor, space ticks the
+# row, enter installs. Numbers 1-3 also toggle. Raw key mode via stty; if that
+# is not available it falls back to typing numbers. Both read the terminal so
+# they work through a pipe. Sets WANT_FULL / WANT_SDDM / WANT_SERVICES.
+choose_extras() {
+	t="$1"
+	_old=$(stty -g <"$t" 2>/dev/null) || {
+		number_menu "$t"
+		return 0
+	}
+	MENU_CUR=0
+	printf '\n  Ricelin extras  (up/down move, space ticks, enter installs):\n' >"$t"
+	draw_rows "$t"
+	stty -echo -icanon min 1 time 0 <"$t" 2>/dev/null
+	while :; do
+		_key=$(read_key "$t")
+		if [ "$_key" = "$ESC" ]; then
+			_k2=$(read_key "$t")
+			_k3=$(read_key "$t")
+			case "$_k2$_k3" in
+			'[A') MENU_CUR=$(((MENU_CUR + 2) % 3)) ;;
+			'[B') MENU_CUR=$(((MENU_CUR + 1) % 3)) ;;
+			esac
+		else
+			case "$_key" in
+			' ') toggle_current ;;
+			1) WANT_FULL=$((1 - WANT_FULL)) ;;
+			2) WANT_SDDM=$((1 - WANT_SDDM)) ;;
+			3) WANT_SERVICES=$((1 - WANT_SERVICES)) ;;
+			"$CR" | "$NL") break ;;
+			q | Q) break ;;
+			esac
+		fi
+		printf '\033[3A' >"$t"
+		draw_rows "$t"
+	done
+	stty "$_old" <"$t" 2>/dev/null
+	printf '\n' >"$t"
+}
+
+# Guided selection. Shows the checklist when a terminal is available, otherwise
+# takes the QuickStart defaults. Skipped entirely when a flag already chose.
 interactive_select() {
 	[ "$SELECTION_GIVEN" -eq 1 ] && return 0
 	[ "$NO_PROMPT" -eq 1 ] && return 0
