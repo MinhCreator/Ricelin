@@ -18,7 +18,8 @@ SettingsSurface {
     rows: [
         { item: appearanceRow, kind: "nav", surface: "appearance" },
         { item: keybindsRow, kind: "nav", surface: "keybinds" },
-        { item: recordingRow, kind: "nav", surface: "recording" }
+        { item: recordingRow, kind: "nav", surface: "recording" },
+        { item: updatesRow, kind: "nav", surface: "updates" }
     ]
 
     Column {
@@ -98,13 +99,29 @@ SettingsSurface {
             glyph: "録"
             name: "Recording"
             sub: "Capture countdown"
-            last: true
 
             GlyphIcon {
                 width: 16 * root.s
                 height: 16 * root.s
                 name: "chevron-right"
                 color: root.focusRowItem === recordingRow ? Theme.cream : Theme.iconDim
+                stroke: 2.2
+            }
+        }
+
+        SettingsRow {
+            id: updatesRow
+            surface: root
+            glyph: "更"
+            name: "Updates"
+            sub: "Version and check for updates"
+            last: true
+
+            GlyphIcon {
+                width: 16 * root.s
+                height: 16 * root.s
+                name: "chevron-right"
+                color: root.focusRowItem === updatesRow ? Theme.cream : Theme.iconDim
                 stroke: 2.2
             }
         }
