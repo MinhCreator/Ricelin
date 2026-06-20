@@ -32,6 +32,7 @@ SettingsSurface {
 
     property var monitors: []
     property string pendingOut: ""
+    property string openPicker: ""
     property int countdown: 0
     property string note: ""
 
@@ -48,6 +49,7 @@ SettingsSurface {
             readProc.running = true;
         } else {
             cancelCountdown();
+            openPicker = "";
             focusRowItem = null;
             kbIndex = -1;
         }
@@ -290,52 +292,32 @@ SettingsSurface {
                             font.letterSpacing: 0.3 * root.s
                         }
 
-                        Row {
+                        DisplayPicker {
                             width: parent.width
-                            spacing: 8 * root.s
-
-                            Text {
-                                anchors.verticalCenter: parent.verticalCenter
-                                width: 64 * root.s
-                                text: "Resolution"
-                                color: Theme.faint
-                                font.family: Theme.font
-                                font.pixelSize: 10.5 * root.s
-                                font.weight: Font.Medium
-                            }
-
-                            SettingsSeg {
-                                anchors.verticalCenter: parent.verticalCenter
-                                s: root.s
-                                options: card.resolutions.map(function (r, i) { return { label: r.w + "×" + r.h, value: i }; })
-                                value: card.resIndex
-                                onPicked: (v) => {
-                                    card.resIndex = v;
-                                    card.rateIndex = card.nearestRateIndex(card.rates.length > 0 ? card.rates[0] : 60);
-                                }
+                            s: root.s
+                            label: "Resolution"
+                            options: card.resolutions.map(function (r, i) { return { label: r.w + "×" + r.h, value: i }; })
+                            value: card.resIndex
+                            open: root.openPicker === card.modelData.name + ":res"
+                            onRequestToggle: root.openPicker = (root.openPicker === card.modelData.name + ":res" ? "" : card.modelData.name + ":res")
+                            onPicked: (v) => {
+                                card.resIndex = v;
+                                card.rateIndex = card.nearestRateIndex(card.rates.length > 0 ? card.rates[0] : 60);
+                                root.openPicker = "";
                             }
                         }
 
-                        Row {
+                        DisplayPicker {
                             width: parent.width
-                            spacing: 8 * root.s
-
-                            Text {
-                                anchors.verticalCenter: parent.verticalCenter
-                                width: 64 * root.s
-                                text: "Refresh"
-                                color: Theme.faint
-                                font.family: Theme.font
-                                font.pixelSize: 10.5 * root.s
-                                font.weight: Font.Medium
-                            }
-
-                            SettingsSeg {
-                                anchors.verticalCenter: parent.verticalCenter
-                                s: root.s
-                                options: card.rates.map(function (hz, i) { return { label: hz + "Hz", value: i }; })
-                                value: Math.min(card.rateIndex, Math.max(0, card.rates.length - 1))
-                                onPicked: (v) => card.rateIndex = v
+                            s: root.s
+                            label: "Refresh"
+                            options: card.rates.map(function (hz, i) { return { label: hz + "Hz", value: i }; })
+                            value: Math.min(card.rateIndex, Math.max(0, card.rates.length - 1))
+                            open: root.openPicker === card.modelData.name + ":rate"
+                            onRequestToggle: root.openPicker = (root.openPicker === card.modelData.name + ":rate" ? "" : card.modelData.name + ":rate")
+                            onPicked: (v) => {
+                                card.rateIndex = v;
+                                root.openPicker = "";
                             }
                         }
 
