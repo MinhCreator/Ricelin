@@ -37,13 +37,13 @@ function splitArgs(inner) {
 function resolveCombo(firstArg, modValue) {
     var modMatch = firstArg.match(/^mod\s*\.\.\s*"([^"]*)"$/);
     if (modMatch) {
-        return { combo: modValue + modMatch[1], comboForm: "mod" };
+        return { combo: modValue + modMatch[1] };
     }
     var litMatch = firstArg.match(/^"([^"]*)"$/);
     if (litMatch) {
-        return { combo: litMatch[1], comboForm: "literal" };
+        return { combo: litMatch[1] };
     }
-    return { combo: firstArg, comboForm: "literal" };
+    return { combo: firstArg };
 }
 
 function deriveLabel(action) {
@@ -145,10 +145,7 @@ function parseLine(raw, lineIndex, modValue) {
         cmd: execCmd(action),
         isExec: isExecAction(action),
         isMouse: mouse,
-        opts: opts,
-        lineIndex: lineIndex,
-        raw: raw,
-        comboForm: resolved.comboForm
+        lineIndex: lineIndex
     };
 }
 
@@ -459,21 +456,4 @@ function editName(luaText, lineIndex, name) {
 
     lines[lineIndex] = line;
     return { text: lines.join("\n"), ok: true, error: "" };
-}
-
-var Binds = {
-    parse: parse,
-    rebind: rebind,
-    inUse: inUse,
-    readMod: readMod,
-    deriveLabel: deriveLabel,
-    add: add,
-    del: del,
-    editCmd: editCmd,
-    editAction: editAction,
-    editName: editName
-};
-
-if (typeof module !== "undefined" && module.exports) {
-    module.exports = Binds;
 }

@@ -72,13 +72,3 @@ function chord(key, modifiers) {
     parts.push(k);
     return parts.join(" + ");
 }
-
-var Chord = {
-    keyName: keyName,
-    modNames: modNames,
-    chord: chord
-};
-
-if (typeof module !== "undefined" && module.exports) {
-    module.exports = Chord;
-}

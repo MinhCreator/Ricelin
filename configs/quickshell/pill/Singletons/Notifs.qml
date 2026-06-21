@@ -92,18 +92,6 @@ Singleton {
         return "";
     }
 
-    function dismissNotif(n) {
-        if (!n) return;
-        if (typeof n.dismiss === "function") {
-            var d = Object.assign({}, userDismissed);
-            d[n.id] = true;
-            root.userDismissed = d;
-            n.dismiss();
-        } else {
-            root.history = root.history.filter(function(h) { return h.id !== n.id; });
-        }
-    }
-
     function dismissEntry(e) {
         if (!e || !e.items) return;
         var d = Object.assign({}, userDismissed);

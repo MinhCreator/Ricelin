@@ -108,13 +108,3 @@ function replaceField(block, name, value) {
 function escapeRe(s) {
     return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
-
-var Monitors = {
-    parse: parse,
-    parseMode: parseMode,
-    setMonitor: setMonitor
-};
-
-if (typeof module !== "undefined" && module.exports) {
-    module.exports = Monitors;
-}
