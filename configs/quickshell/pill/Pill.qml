@@ -832,6 +832,15 @@ Item {
                     visible: Weather.ready
                     spacing: 5 * pill.s
 
+                    HoverHandler {
+                        cursorShape: Qt.PointingHandCursor
+                        enabled: hover.live
+                    }
+                    TapHandler {
+                        enabled: hover.live
+                        onTapped: pill.requestSurface("calendar")
+                    }
+
                     GlyphIcon {
                         anchors.verticalCenter: parent.verticalCenter
                         width: 16 * pill.s
