@@ -95,6 +95,23 @@ SettingsSurface {
     }
 
     /**
+     * Same as writeDeco, but for the two opacity fields. A plain reload re-reads
+     * the file yet only animates windows on their next focus change, so a window
+     * that was inactive when the value changed keeps its stale alpha. Pushing the
+     * value through hl.config hits Hyprland's REFRESH_WINDOW_STATES path, which
+     * recomputes every existing window's active/inactive alpha at once. Sends both
+     * fields so lowering one then restoring the other never leaves a window stuck,
+     * and the push fires even when the value lands back on 1.0.
+     */
+    function writeOpacity(name, literal) {
+        writeDeco(name, literal);
+        opacityRefresh.command = ["hyprctl", "eval",
+            "hl.config({ decoration = { active_opacity = " + root.activeOpacity.toFixed(2)
+            + ", inactive_opacity = " + root.inactiveOpacity.toFixed(2) + " } })"];
+        opacityRefresh.running = true;
+    }
+
+    /**
      * Rewrites one field inside the `blur` block to `literal` and reloads
      * Hyprland. Scoping to the block keeps `enabled` from hitting the sibling
      * `shadow` block's `enabled` first.
@@ -148,6 +165,11 @@ SettingsSurface {
     Process {
         id: reloadProc
         command: ["setsid", "-f", "sh", "-c", "sleep 0.4; hyprctl reload"]
+    }
+
+    Process {
+        id: opacityRefresh
+        command: []
     }
 
     component Stepper: Row {
@@ -433,7 +455,7 @@ SettingsSurface {
                         if (next === root.activeOpacity)
                             return;
                         root.activeOpacity = next;
-                        root.writeDeco("active_opacity", next.toFixed(2));
+                        root.writeOpacity("active_opacity", next.toFixed(2));
                     }
                 }
             }
@@ -449,7 +471,7 @@ SettingsSurface {
                         if (next === root.inactiveOpacity)
                             return;
                         root.inactiveOpacity = next;
-                        root.writeDeco("inactive_opacity", next.toFixed(2));
+                        root.writeOpacity("inactive_opacity", next.toFixed(2));
                     }
                 }
             }
