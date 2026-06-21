@@ -90,7 +90,11 @@ printf '%s\n' "$pic" > "$STATE"
 
 flags_file="${XDG_STATE_HOME:-$HOME/.local/state}/ricelin/flags.json"
 pmode=$(jq -r '.paletteMode // "static"' "$flags_file" 2>/dev/null || echo static)
-if [ "$pmode" != "manual" ]; then
+if [ "$pmode" = "manual" ]; then
+    mh=$(jq -r '.manualHue // 30' "$flags_file" 2>/dev/null || echo 30)
+    md=$(jq -r 'if .manualDark == false then "light" else "dark" end' "$flags_file" 2>/dev/null || echo dark)
+    python3 "$(dirname "$0")/wallcolors.py" --hue "$mh" "$md" >/dev/null 2>&1 || true
+else
     python3 "$(dirname "$0")/wallcolors.py" "$pic" >/dev/null 2>&1 || true
 fi
 hyprctl reload >/dev/null 2>&1 || true

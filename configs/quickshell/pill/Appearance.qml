@@ -31,6 +31,14 @@ SettingsSurface {
         applyTimer.restart();
     }
 
+    function applyMode(v) {
+        Flags.paletteMode = v;
+        if (v === "manual")
+            applyManual();
+        else if (v === "dynamic")
+            dynamicProc.running = true;
+    }
+
     Timer {
         id: applyTimer
         interval: 260
@@ -45,6 +53,12 @@ SettingsSurface {
             "sh", root.hueArg, root.modeArg]
     }
 
+    Process {
+        id: dynamicProc
+        command: ["sh", "-c",
+            "f=\"${XDG_STATE_HOME:-$HOME/.local/state}/ricelin-wallpaper\"; pic=$(cat \"$f\" 2>/dev/null); [ -f \"$pic\" ] && python3 \"$HOME/.config/hypr/scripts/wallcolors.py\" \"$pic\" >/dev/null 2>&1; hyprctl reload >/dev/null 2>&1; busctl --user call com.mitchellh.ghostty /com/mitchellh/ghostty org.gtk.Actions Activate \"sava{sv}\" reload-config 0 0 >/dev/null 2>&1 || true"]
+    }
+
     Connections {
         target: Flags
         function onManualHueChanged() {
@@ -57,7 +71,7 @@ SettingsSurface {
         { item: timeRow, kind: "seg", vals: [false, true], get: function () { return Flags.time12h; }, set: function (v) { Flags.time12h = v; } },
         { item: secRow, kind: "toggle", get: function () { return Flags.clockSeconds; }, set: function (v) { Flags.clockSeconds = v; } },
         { item: glyphRow, kind: "toggle", get: function () { return Flags.showGlyphs; }, set: function (v) { Flags.showGlyphs = v; } },
-        { item: paletteRow, kind: "seg", vals: ["static", "dynamic", "manual"], get: function () { return Flags.paletteMode; }, set: function (v) { Flags.paletteMode = v; if (v === "manual") root.applyManual(); } },
+        { item: paletteRow, kind: "seg", vals: ["static", "dynamic", "manual"], get: function () { return Flags.paletteMode; }, set: function (v) { root.applyMode(v); } },
         { item: scaleRow, kind: "seg", vals: [0.9, 1.0, 1.1, 1.25], get: function () { return Flags.uiScale; }, set: function (v) { Flags.uiScale = v; } },
         { item: motionRow, kind: "toggle", get: function () { return Flags.reduceMotion; }, set: function (v) { Flags.reduceMotion = v; } },
         { item: fontRow, kind: "nav", surface: "fontpicker" }
@@ -123,13 +137,13 @@ SettingsSurface {
             id: paletteRow
             surface: root
             name: "Palette"
-            sub: "Static flame · Dynamic per wallpaper · Manual your hue"
+            sub: "Static flame, dynamic from the wallpaper, or a hue you pick"
 
             SettingsSeg {
                 s: root.s
                 options: [{ label: "Static", value: "static" }, { label: "Dynamic", value: "dynamic" }, { label: "Manual", value: "manual" }]
                 value: Flags.paletteMode
-                onPicked: (v) => { Flags.paletteMode = v; if (v === "manual") root.applyManual(); }
+                onPicked: (v) => root.applyMode(v)
             }
         }
 
@@ -233,22 +247,28 @@ SettingsSurface {
                             font.features: { "tnum": 1 }
                         }
                     }
+                }
+            }
+        }
 
-                    Item {
-                        anchors.verticalCenter: parent.verticalCenter
-                        width: parent.width - x
-                        height: tone.implicitHeight
+        Item {
+            id: toneSection
+            width: parent.width
+            height: Flags.paletteMode === "manual" ? toneRow.implicitHeight : 0
+            clip: true
+            Behavior on height { NumberAnimation { duration: Motion.standard; easing.type: Motion.easeStandard } }
 
-                        SettingsSeg {
-                            id: tone
-                            anchors.right: parent.right
-                            anchors.verticalCenter: parent.verticalCenter
-                            s: root.s
-                            options: [{ label: "Dark", value: true }, { label: "Light", value: false }]
-                            value: Flags.manualDark
-                            onPicked: (v) => { Flags.manualDark = v; root.applyManual(); }
-                        }
-                    }
+            SettingsRow {
+                id: toneRow
+                surface: root
+                name: "Surfaces"
+                sub: "Dark or light pill behind your hue"
+
+                SettingsSeg {
+                    s: root.s
+                    options: [{ label: "Dark", value: true }, { label: "Light", value: false }]
+                    value: Flags.manualDark
+                    onPicked: (v) => { Flags.manualDark = v; root.applyManual(); }
                 }
             }
         }

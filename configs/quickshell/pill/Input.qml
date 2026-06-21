@@ -7,15 +7,14 @@ import "lib/setInput.js" as SetInput
 import "Singletons"
 
 /**
- * 操 INPUT sub-surface: edits the pointer, keyboard and cursor settings that live
- * in the Hyprland Lua modules, writing each change straight back to its source so
- * the choice survives a restart. Pointer and keyboard fields rewrite
- * input.lua and reload Hyprland; sensitivity, repeat rate and repeat delay step
- * through a small −/value/+ control while accel profile and the scroll/numlock
- * switches use the shared segmented and toggle controls. Cursor size and theme
- * apply live through `hyprctl setcursor` with no reload, and persist by rewriting
- * the XCURSOR/HYPRCURSOR env lines and the autostart setcursor call. The theme
- * list is scanned from the installed icon themes that carry a `cursors/` folder.
+ * 操 INPUT sub-surface: edits the pointer and cursor settings that live in the
+ * Hyprland Lua modules, writing each change straight back to its source so the
+ * choice survives a restart. Pointer fields rewrite input.lua and reload
+ * Hyprland; sensitivity steps through a small −/value/+ control while the accel
+ * profile uses the shared segmented control. Cursor size and theme apply live
+ * through `hyprctl setcursor` with no reload, and persist by rewriting the
+ * XCURSOR/HYPRCURSOR env lines and the autostart setcursor call. The theme list
+ * is scanned from the installed icon themes that carry a `cursors/` folder.
  * Reached from the settings index; morphs back on the back chevron.
  */
 SettingsSurface {
@@ -31,10 +30,6 @@ SettingsSurface {
 
     property real sensitivity: 0
     property string accelProfile: "flat"
-    property bool naturalScroll: true
-    property int repeatRate: 40
-    property int repeatDelay: 400
-    property bool numlock: true
     property int cursorSize: 24
     property string cursorTheme: "Bibata-Modern-Ice"
     property var cursorThemes: []
@@ -70,12 +65,6 @@ SettingsSurface {
         root.sensitivity = isNaN(sens) ? 0 : sens;
         var ap = SetInput.getField(inp, "accel_profile");
         root.accelProfile = ap.length > 0 ? ap : "flat";
-        root.naturalScroll = SetInput.getField(inp, "natural_scroll") === "true";
-        var rr = parseInt(SetInput.getField(inp, "repeat_rate"), 10);
-        root.repeatRate = isNaN(rr) ? 40 : rr;
-        var rd = parseInt(SetInput.getField(inp, "repeat_delay"), 10);
-        root.repeatDelay = isNaN(rd) ? 400 : rd;
-        root.numlock = SetInput.getField(inp, "numlock_by_default") === "true";
 
         var env = envFile.text();
         var cs = parseInt(SetInput.getField(env, "XCURSOR_SIZE"), 10);
@@ -356,62 +345,6 @@ SettingsSurface {
                 }
             }
 
-            FieldRow {
-                label: "Natural scroll"
-                LinkToggle {
-                    s: root.s
-                    on: root.naturalScroll
-                    onToggled: {
-                        root.naturalScroll = !root.naturalScroll;
-                        root.writeInputField("natural_scroll", root.naturalScroll ? "true" : "false");
-                    }
-                }
-            }
-
-            GroupLabel { text: "Keyboard" }
-
-            FieldRow {
-                label: "Repeat rate"
-                Stepper {
-                    value: root.repeatRate
-                    display: String(root.repeatRate)
-                    onStepped: (dir) => {
-                        var next = Math.max(1, Math.min(100, root.repeatRate + dir * 5));
-                        if (next === root.repeatRate)
-                            return;
-                        root.repeatRate = next;
-                        root.writeInputField("repeat_rate", String(next));
-                    }
-                }
-            }
-
-            FieldRow {
-                label: "Repeat delay"
-                Stepper {
-                    value: root.repeatDelay
-                    display: String(root.repeatDelay)
-                    onStepped: (dir) => {
-                        var next = Math.max(100, Math.min(2000, root.repeatDelay + dir * 50));
-                        if (next === root.repeatDelay)
-                            return;
-                        root.repeatDelay = next;
-                        root.writeInputField("repeat_delay", String(next));
-                    }
-                }
-            }
-
-            FieldRow {
-                label: "Numlock on boot"
-                LinkToggle {
-                    s: root.s
-                    on: root.numlock
-                    onToggled: {
-                        root.numlock = !root.numlock;
-                        root.writeInputField("numlock_by_default", root.numlock ? "true" : "false");
-                    }
-                }
-            }
-
             GroupLabel { text: "Cursor" }
 
             FieldRow {
@@ -420,7 +353,7 @@ SettingsSurface {
                     value: root.cursorSize
                     display: String(root.cursorSize)
                     onStepped: (dir) => {
-                        var next = Math.max(12, Math.min(96, root.cursorSize + dir));
+                        var next = Math.max(12, Math.min(96, root.cursorSize + dir * 4));
                         if (next === root.cursorSize)
                             return;
                         root.cursorSize = next;
