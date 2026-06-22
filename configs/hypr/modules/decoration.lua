@@ -23,8 +23,8 @@ hl.config({
     decoration = {
         rounding         = 12,
         rounding_power   = 4,
-        active_opacity   = 1.0,
-        inactive_opacity = 1.0,
+        active_opacity   = 1.00,
+        inactive_opacity = 1.00,
         shadow = {
             enabled      = true,
             range        = 12,
@@ -42,32 +42,4 @@ hl.config({
     },
 })
 
-hl.layer_rule({
-    name    = "topbar-power-noanim",
-    match   = { namespace = "topbar-power" },
-    no_anim = true,
-})
-
-hl.layer_rule({
-    name    = "topbar-calendar-noanim",
-    match   = { namespace = "topbar-calendar" },
-    no_anim = true,
-})
-
-hl.layer_rule({
-    name    = "topbar-tray-noanim",
-    match   = { namespace = "topbar-tray" },
-    no_anim = true,
-})
-
-hl.layer_rule({
-    name    = "sidebar-noanim",
-    match   = { namespace = "sidebar" },
-    no_anim = true,
-})
-
-hl.layer_rule({
-    name    = "sidebar-inhibit-noanim",
-    match   = { namespace = "sidebar-inhibit" },
-    no_anim = true,
-})
+hl.layer_rule({ name = "pill-blur", match = { namespace = "pill" }, blur = true, ignore_alpha = 0.5 })
