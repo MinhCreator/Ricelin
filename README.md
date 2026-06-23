@@ -89,6 +89,10 @@ screenshot tool) runs; the installer points you at [rishot](https://github.com/G
 
 These started as my personal dotfiles, built around my own machine. The installer neutralises the hardware-specific bits, but some paths and choices still lean on how I run things, so read before you borrow.
 
+## Support
+
+If Ricelin made your setup nicer, you can [buy me a coffee on Ko-fi](https://ko-fi.com/gakuseei). I build this on my own and it keeps the work going.
+
 ## Credits
 
 The lock screen, the SDDM background and the wallpapers are not mine. See [CREDITS](configs/sddm/themes/torii/CREDITS.md).
