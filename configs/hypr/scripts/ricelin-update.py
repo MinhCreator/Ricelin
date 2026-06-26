@@ -202,9 +202,15 @@ def extract_changelog(clone, base, head):
     return lines
 
 
-def tracked_config_files(clone):
-    """Every tracked file under configs/ as a path relative to configs/."""
-    out = git(clone, "ls-files", "configs/")
+def tracked_config_files(clone, ref):
+    """
+    Every file under configs/ at ref, relative to configs/. Listed from the commit
+    tree, not the clone's checked-out index, so files a newer upstream added (a new
+    QML surface, say) are deployed too; ls-files would only ever see the stale
+    working tree and silently skip them, leaving the live config referencing a type
+    whose file never landed.
+    """
+    out = git(clone, "ls-tree", "-r", "--name-only", ref, "configs/")
     rels = []
     for line in out.splitlines():
         line = line.strip()
@@ -300,7 +306,7 @@ def sync_code(clone, config_root, head, apply):
     """
     protected = set(PROTECTED)
     changed = False
-    for rel in tracked_config_files(clone):
+    for rel in tracked_config_files(clone, head):
         if rel in protected:
             continue
         new = show_at(clone, head, rel)
