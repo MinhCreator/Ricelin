@@ -40,10 +40,10 @@ hl.bind(mod .. " + SHIFT + 9", hl.dsp.window.move({ workspace = 9,  follow = fal
 hl.bind(mod .. " + SHIFT + 0", hl.dsp.window.move({ workspace = 10, follow = false }))
 
 hl.bind(mod .. " + P",         hl.dsp.workspace.toggle_special("private"))
-hl.bind(mod .. " + SHIFT + P", hl.dsp.window.move({ workspace = "special:private", follow = false }))
+hl.bind(mod .. " + SHIFT + P", hl.dsp.exec_cmd(os.getenv("HOME") .. "/.config/hypr/scripts/special-toggle.sh private"))
 
 hl.bind(mod .. " + S",         hl.dsp.workspace.toggle_special("stash"))
-hl.bind(mod .. " + SHIFT + S", hl.dsp.window.move({ workspace = "special:stash", follow = false }))
+hl.bind(mod .. " + SHIFT + S", hl.dsp.exec_cmd(os.getenv("HOME") .. "/.config/hypr/scripts/special-toggle.sh stash"))
 
 hl.bind(mod .. " + SHIFT + C",  hl.dsp.exec_cmd("hyprpicker -a"))
 
