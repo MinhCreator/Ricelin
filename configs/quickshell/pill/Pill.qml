@@ -1550,10 +1550,6 @@ Item {
                 s: pill.s
                 live: pill.mode === "toast"
                 notif: Notifs.popups.length > 0 ? Notifs.popups[Notifs.popups.length - 1] : null
-                onOpenCenter: {
-                    pill.linkInitialView = "main";
-                    pill.requestSurface("link");
-                }
             }
 
             Text {
