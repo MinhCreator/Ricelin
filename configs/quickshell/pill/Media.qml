@@ -32,6 +32,8 @@ PillSurface {
         if (!hasPlayer)
             return "";
         var site = siteName(trackUrl);
+        if (site.length === 0)
+            site = siteFromTitle(title);
         if (site.length > 0)
             return site;
         var n = player.identity ? player.identity : (player.desktopEntry ? player.desktopEntry : "");
@@ -107,6 +109,20 @@ PillSurface {
             return "";
         var parts = m[1].toLowerCase().split(".");
         return parts.length >= 2 ? parts[parts.length - 2] : parts[0];
+    }
+
+    /**
+     * Browsers that expose no page url still tag the site onto the tab title,
+     * like "... | Spotify". Trust only known media sites so an ordinary title
+     * ending in a word isn't mistaken for a source.
+     */
+    function siteFromTitle(t) {
+        var m = t.match(/[|\-–—]\s*([A-Za-z][A-Za-z0-9]+)\s*$/);
+        if (!m)
+            return "";
+        var s = m[1].toLowerCase();
+        var known = { youtube: 1, spotify: 1, twitch: 1, soundcloud: 1, bandcamp: 1 };
+        return known[s] ? s : "";
     }
 
     /**
