@@ -296,7 +296,7 @@ PillSurface {
             sourceSize: Qt.size(128, 128)
             fillMode: Image.PreserveAspectCrop
             asynchronous: true
-            cache: false
+            cache: String(source).indexOf("file:") !== 0
             visible: false
         }
 
@@ -393,7 +393,7 @@ PillSurface {
                 sourceSize: Qt.size(Math.ceil(width * 2), Math.ceil(height * 2))
                 fillMode: Image.PreserveAspectCrop
                 asynchronous: true
-                cache: false
+                cache: String(source).indexOf("file:") !== 0
                 onStatusChanged: {
                     if (coverPair.back !== this)
                         return;
@@ -412,7 +412,7 @@ PillSurface {
                 sourceSize: Qt.size(Math.ceil(width * 2), Math.ceil(height * 2))
                 fillMode: Image.PreserveAspectCrop
                 asynchronous: true
-                cache: false
+                cache: String(source).indexOf("file:") !== 0
                 onStatusChanged: {
                     if (coverPair.back !== this)
                         return;
