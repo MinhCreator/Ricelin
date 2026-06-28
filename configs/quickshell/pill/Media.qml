@@ -107,7 +107,10 @@ PillSurface {
         var m = url.match(/^https?:\/\/(?:www\.)?([^\/]+)/);
         if (!m)
             return "";
-        var parts = m[1].toLowerCase().split(".");
+        var host = m[1].toLowerCase();
+        if (host === "youtu.be")
+            return "youtube";
+        var parts = host.split(".");
         return parts.length >= 2 ? parts[parts.length - 2] : parts[0];
     }
 
@@ -125,29 +128,45 @@ PillSurface {
         return known[s] ? s : "";
     }
 
+    /** A youtube.com/watch or youtu.be video id, not just any url carrying a v= param. */
+    function youtubeId(url) {
+        var m = url.match(/^https?:\/\/(?:www\.|m\.|music\.)?youtube\.com\/watch\?(?:.*&)?v=([\w-]{11})/)
+            || url.match(/^https?:\/\/youtu\.be\/([\w-]{11})/);
+        return m ? m[1] : "";
+    }
+
+    /** Twitch channel from a stream url; the reserved site paths are not channels. */
+    function twitchChannelOf(url) {
+        var m = url.match(/^https?:\/\/(?:www\.)?twitch\.tv\/([^\/?#]+)/);
+        if (!m)
+            return "";
+        var ch = m[1].toLowerCase();
+        var reserved = { videos: 1, directory: 1, u: 1, p: 1, settings: 1, subscriptions: 1, following: 1, downloads: 1 };
+        return reserved[ch] ? "" : ch;
+    }
+
     /**
      * Cover for players that expose no MPRIS art: YouTube's thumbnail from the
      * watch id (mqdefault is clean 16:9 and always exists), or a Twitch stream's
      * live preview from the channel.
      */
     function derivedThumb(url) {
-        var y = url.match(/[?&]v=([\w-]{11})/) || url.match(/youtu\.be\/([\w-]{11})/);
-        if (y)
-            return "https://img.youtube.com/vi/" + y[1] + "/mqdefault.jpg";
-        var t = url.match(/^https?:\/\/(?:www\.)?twitch\.tv\/([^\/?#]+)/);
-        if (t)
-            return "https://static-cdn.jtvnw.net/previews-ttv/live_user_" + t[1] + "-320x180.jpg";
+        var yid = youtubeId(url);
+        if (yid)
+            return "https://img.youtube.com/vi/" + yid + "/mqdefault.jpg";
+        var ch = twitchChannelOf(url);
+        if (ch)
+            return "https://static-cdn.jtvnw.net/previews-ttv/live_user_" + ch + "-320x180.jpg";
         return "";
     }
 
     function isTwitch(url) {
-        return /^https?:\/\/(?:www\.)?twitch\.tv\//.test(url);
+        return twitchChannelOf(url).length > 0;
     }
 
     /** Resolve the streamer avatar once per channel; failure keeps the live preview. */
     function resolveTwitch() {
-        var t = trackUrl.match(/^https?:\/\/(?:www\.)?twitch\.tv\/([^\/?#]+)/);
-        var ch = t ? t[1].toLowerCase() : "";
+        var ch = twitchChannelOf(trackUrl);
         if (ch === twitchChannel)
             return;
         twitchChannel = ch;
@@ -320,8 +339,11 @@ PillSurface {
              * fresh decode past the (disabled) image cache.
              */
             function load(url, key) {
-                if (key === coverPair.shownKey && front.status === Image.Ready)
+                if (key === coverPair.shownKey && front.status === Image.Ready) {
+                    back.source = "";
+                    coverPair.pendingKey = key;
                     return;
+                }
                 coverFade.stop();
                 back.opacity = 0;
                 coverPair.pendingKey = key;
@@ -638,7 +660,7 @@ PillSurface {
                 id: seekArea
                 anchors.fill: parent
                 anchors.margins: -8 * root.s
-                enabled: root.hasPlayer && root.player.canSeek && root.lengthSec > 0
+                enabled: root.hasPlayer && root.player.canSeek && root.lengthSec > 0 && !root.live
                 cursorShape: Qt.PointingHandCursor
                 function fracAt(mx) {
                     return Math.max(0, Math.min(1, (mx - 8 * root.s - stroke.inset) / stroke.usable));

@@ -19,6 +19,10 @@ Singleton {
     /** dbusName of the player whose playback state changed most recently. */
     property string lastTouched: ""
 
+    /** Existing players fire a state event as their delegates build; gate those out. */
+    property bool ready: false
+    Component.onCompleted: ready = true
+
     function anyOtherPlaying(self) {
         var l = root.list;
         for (var i = 0; i < l.length; i++)
@@ -66,13 +70,12 @@ Singleton {
     }
 
     /**
-     * Mark the last-commanded player. A play or pause moves the player's
-     * playbackState, and the binding only re-fires on real changes (not on
-     * delegate creation), so a freshly seen player never steals focus on its
-     * own. A player that starts while another is already playing is left alone,
-     * so a background tab autoplaying can't grab the surface off your music; a
-     * pause always counts, since pausing is something you did on purpose. The
-     * proxy is held at a constant so its mirrored state never fires.
+     * Mark the last-commanded player on any play or pause. A change is ignored
+     * while another player is already playing, so a background tab starting or
+     * pausing can't grab the surface off the music you are on; the ready gate
+     * drops the burst of events that fire as existing players' delegates build
+     * at launch, leaving the startup pick to the fallback. The proxy is pinned
+     * to a constant so its mirrored state never fires.
      */
     Instantiator {
         model: Mpris.players
@@ -82,9 +85,9 @@ Singleton {
             readonly property int pbState: (watch.modelData && !Players.isProxy(watch.modelData)) ? watch.modelData.playbackState : -1
             onPbStateChanged: {
                 var p = watch.modelData;
-                if (!p || Players.isProxy(p))
+                if (!Players.ready || !p || Players.isProxy(p))
                     return;
-                if (p.isPlaying && Players.anyOtherPlaying(p))
+                if (Players.anyOtherPlaying(p))
                     return;
                 Players.lastTouched = p.dbusName;
             }
