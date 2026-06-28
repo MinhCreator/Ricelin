@@ -57,8 +57,21 @@ PillSurface {
             return twitchAvatar;
         return derivedThumb(trackUrl);
     }
-    /** A bogus near-INT64 length is how live streams report "no end". */
-    readonly property bool live: hasPlayer && (lengthSec <= 0 || lengthSec > 86400)
+    /**
+     * Twitch reports a near-INT64 length for "no end"; YouTube live reports a
+     * real length that shifts as the broadcast runs (a recorded video keeps a
+     * fixed length), and at the live edge the position sits on top of it. Either
+     * tell marks it live; the varied latch resets per track.
+     */
+    property real prevLen: 0
+    property bool lengthVaried: false
+    onLengthSecChanged: {
+        if (prevLen > 0 && Math.abs(lengthSec - prevLen) > 2)
+            lengthVaried = true;
+        prevLen = lengthSec;
+    }
+    readonly property bool atLiveEdge: playing && lengthSec > 0 && Math.abs(positionSec - lengthSec) < 6
+    readonly property bool live: hasPlayer && (lengthSec <= 0 || lengthSec > 86400 || lengthVaried || atLiveEdge)
     /** Source shown title-cased: "Youtube", "Twitch", "Spotify". */
     readonly property string serviceLabel: playerService.length > 0
         ? playerService.charAt(0).toUpperCase() + playerService.slice(1) : ""
@@ -212,7 +225,7 @@ PillSurface {
         bleedSrc.source = "";
         bleedSrc.source = artUrl;
     }
-    onTrackKeyChanged: loadArt()
+    onTrackKeyChanged: { lengthVaried = false; prevLen = 0; loadArt(); }
     onTrackUrlChanged: if (active) resolveTwitch()
     onActiveChanged: if (active) { resolveTwitch(); loadArt(); }
     onTitleChanged: if (playing && active) pulseAnim.restart()
