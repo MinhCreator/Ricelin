@@ -642,6 +642,10 @@ def run(args):
                 ok, detail = _run(
                     ["sudo", "systemctl", "enable", "--now", "bluetooth.service"], dry)
                 record(ok, detail, "Enable bluetooth", "Enable bluetooth.service yourself.")
+                ok, detail = _run(
+                    ["systemctl", "--user", "enable", "--now", "hyprsunset.service"], dry)
+                record(ok, detail, "Enable night light",
+                       "Run: systemctl --user enable --now hyprsunset.service")
             else:
                 notes.extend(_service_note(info["init"]))
 
