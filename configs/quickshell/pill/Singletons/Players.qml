@@ -97,12 +97,24 @@ Singleton {
         model: Mpris.players
         delegate: QtObject {
             required property var modelData
-            readonly property bool playing: (modelData && !Players.isProxy(modelData)) ? modelData.isPlaying : false
+            readonly property bool real: modelData && !Players.isProxy(modelData)
+            readonly property bool playing: real ? modelData.isPlaying : false
+            readonly property string title: real && modelData.trackTitle ? modelData.trackTitle : ""
+
             onPlayingChanged: {
-                if (!Players.ready || !playing)
+                if (!Players.ready)
                     return;
-                if (!Players.isIdle(modelData) && !Players.otherPlaying(modelData))
-                    Players.preferred = modelData;
+                if (playing) {
+                    if (!Players.isIdle(modelData) && !Players.otherPlaying(modelData))
+                        Players.preferred = modelData;
+                    Players.announce(modelData);
+                } else if (modelData === Players.active) {
+                    Players.announce(modelData);
+                }
+            }
+            onTitleChanged: {
+                if (Players.ready && playing && title.length > 0)
+                    Players.announce(modelData);
             }
         }
     }
@@ -121,8 +133,17 @@ Singleton {
         ? source.charAt(0).toUpperCase() + source.slice(1) : ""
 
     /** Browsers reuse one art path per video, so fold player and title in to catch a new song. */
-    readonly property string trackKey: has
-        ? ((active.dbusName || "") + "|" + title + "|" + artUrl) : ""
+    function keyFor(p) {
+        return p ? ((p.dbusName || "") + "|" + (p.trackTitle || "") + "|" + artUrlFor(p)) : "";
+    }
+    readonly property string trackKey: has ? keyFor(active) : ""
+
+    /**
+     * Fired when a player starts, pauses or changes track in a way worth a flash.
+     * The OSD listens and announces that player, even one that is not the active
+     * surface source, so starting a video over your music still tells you.
+     */
+    signal announce(var player)
 
     function urlOf(p) {
         return (p && p.metadata) ? (p.metadata["xesam:url"] || "") : "";
@@ -149,6 +170,26 @@ Singleton {
 
     function nowPlayingFor(p) {
         return p && p.trackTitle ? p.trackTitle : "";
+    }
+
+    /**
+     * The player's own themed app icon, matched off its desktop entry so any
+     * source carries its real logo. Matching is the same window-to-entry pass the
+     * tray uses, with a direct icon-theme lookup as the fallback.
+     */
+    function appIconFor(p) {
+        if (!p)
+            return "";
+        var id = (p.desktopEntry && p.desktopEntry.length > 0) ? p.desktopEntry : (p.identity || "");
+        if (id.length === 0)
+            return "";
+        var apps = DesktopEntries.applications.values;
+        for (var i = 0; i < apps.length; i++) {
+            var e = apps[i];
+            if (e && e.id && e.id.toLowerCase() === id.toLowerCase() && e.icon)
+                return Quickshell.iconPath(e.icon, "application-x-executable");
+        }
+        return Quickshell.iconPath(id.toLowerCase(), "application-x-executable");
     }
 
     function artUrlFor(p) {
