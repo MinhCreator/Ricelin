@@ -4,6 +4,7 @@ import QtQuick
 import QtQuick.Effects
 import QtQuick.Shapes
 import Quickshell
+import Quickshell.Io
 import Quickshell.Networking
 import Quickshell.Hyprland
 import "Singletons"
@@ -164,6 +165,8 @@ Item {
     readonly property real quickChooseH: 76 * s
     readonly property real quickCountW: 150 * s
     readonly property real quickCountH: 64 * s
+    readonly property real dragOverW: 300 * s
+    readonly property real dragOverH: 126 * s
     readonly property real restCorner: 18 * s
     readonly property real openCorner: 22 * s
 
@@ -203,12 +206,21 @@ Item {
         fontpicker: { size: () => Qt.size(fontpickerW, fontpicker.implicitHeight + 29 * s), ame: fontpicker }
     })
 
-    readonly property string mode: surfaceOpen && surfaces[surface] !== undefined ? surface
+    readonly property string mode: dragActive ? "dragOver"
+        : (surfaceOpen && surfaces[surface] !== undefined ? surface
         : (quickChoosing ? "quickChoose"
         : (quickCounting ? "quickCount"
         : (osdActive && !held ? "osd"
         : (toastActive && !held ? "toast"
-        : (expanded ? "hover" : "rest")))))
+        : (expanded ? "hover" : "rest"))))))
+
+    /**
+     * AppImage drag-install state, live only while a file hovers the resting pill.
+     * `dragStage` walks hover -> installing -> done, or bad for a non-AppImage drop.
+     */
+    property bool dragActive: false
+    property string dragName: ""
+    property string dragStage: ""
 
     signal requestSurface(string name)
     signal requestClose()
@@ -491,7 +503,8 @@ Item {
         toast: () => Qt.size(toastW, toastLoader.item ? toastLoader.item.implicitHeight + 24 * s : restH),
         hover: () => Qt.size(hoverW, hoverH),
         quickChoose: () => Qt.size(quickChooseW, quickChooseH),
-        quickCount:  () => Qt.size(quickCountW, quickCountH)
+        quickCount:  () => Qt.size(quickCountW, quickCountH),
+        dragOver:    () => Qt.size(dragOverW, dragOverH)
     })
 
     readonly property size targetSize: {
@@ -745,10 +758,223 @@ Item {
         onTapped: pill.pinned = !pill.pinned
     }
 
+    property var installQueue: []
+
+    function localPath(url) {
+        var s = String(url);
+        if (s.indexOf("file://") === 0)
+            s = s.substring(7);
+        return decodeURIComponent(s);
+    }
+
+    function appimagePaths(urls) {
+        var out = [];
+        for (var i = 0; i < urls.length; i++)
+            if (/\.appimage$/i.test(String(urls[i])))
+                out.push(pill.localPath(urls[i]));
+        return out;
+    }
+
+    function dropLabel(urls) {
+        var p = pill.localPath(urls.length ? urls[0] : "");
+        return p.substring(p.lastIndexOf("/") + 1).replace(/\.appimage$/i, "");
+    }
+
+    property bool installFailed: false
+
+    function runNextInstall() {
+        if (pill.installQueue.length === 0) {
+            pill.dragStage = pill.installFailed ? "fail" : "done";
+            (pill.installFailed ? dropBadTimer : dropDoneTimer).restart();
+            return;
+        }
+        var next = pill.installQueue.shift();
+        pill.dragName = next.substring(next.lastIndexOf("/") + 1).replace(/\.appimage$/i, "");
+        installProc.command = ["bash", Quickshell.env("HOME") + "/.config/hypr/scripts/appimage-install.sh", "install", next];
+        installProc.running = true;
+    }
+
+    Process {
+        id: installProc
+        onExited: (exitCode) => {
+            if (exitCode !== 0)
+                pill.installFailed = true;
+            pill.runNextInstall();
+        }
+    }
+
+    Timer {
+        id: dropDoneTimer
+        interval: 1100
+        onTriggered: {
+            pill.dragActive = false;
+            pill.dragStage = "";
+            pill.requestSurface("launcher");
+        }
+    }
+
+    Timer {
+        id: dropBadTimer
+        interval: 1300
+        onTriggered: {
+            pill.dragActive = false;
+            pill.dragStage = "";
+        }
+    }
+
+    /**
+     * File drops land only on the resting pill; an open surface turns the pill
+     * into a fullscreen modal that swallows the drag before it can start. An
+     * AppImage kicks off the install, anything else flashes a rejection.
+     */
+    DropArea {
+        anchors.fill: parent
+        enabled: !pill.surfaceOpen && pill.dragStage !== "installing" && pill.dragStage !== "done"
+        keys: ["text/uri-list"]
+        onEntered: (drag) => {
+            drag.acceptProposedAction();
+            pill.dragActive = true;
+            pill.dragStage = pill.appimagePaths(drag.urls).length > 0 ? "hover" : "bad";
+            pill.dragName = pill.dropLabel(drag.urls);
+        }
+        onExited: {
+            if (pill.dragStage === "hover" || pill.dragStage === "bad") {
+                pill.dragActive = false;
+                pill.dragStage = "";
+            }
+        }
+        onDropped: (drop) => {
+            drop.acceptProposedAction();
+            var appimages = pill.appimagePaths(drop.urls);
+            if (appimages.length === 0) {
+                pill.dragActive = true;
+                pill.dragStage = "bad";
+                pill.dragName = pill.dropLabel(drop.urls);
+                dropBadTimer.restart();
+                return;
+            }
+            pill.dragActive = true;
+            pill.dragStage = "installing";
+            pill.installFailed = false;
+            pill.installQueue = appimages;
+            pill.runNextInstall();
+        }
+    }
+
+    /**
+     * Drop-zone face: corner brackets frame a stage glyph and label that walk
+     * from "drop to install" through the spinner to a checkmark. Shares the morph
+     * fade of the other pill faces, so it grows in as the pill reaches its size.
+     */
+    Item {
+        id: dragOverView
+        anchors.fill: parent
+        anchors.margins: 11 * pill.s
+        enabled: pill.mode === "dragOver"
+        opacity: pill.mode === "dragOver" ? Math.pow(pill.morphCloseness, 1.2) : 0
+        visible: opacity > 0.01
+
+        Behavior on opacity { NumberAnimation { duration: Motion.standard; easing.type: Motion.easeStandard } }
+
+        readonly property color accent: (pill.dragStage === "bad" || pill.dragStage === "fail") ? "#e0533f" : Theme.vermLit
+        readonly property real brLen: 15 * pill.s
+        readonly property real brThick: 2 * pill.s
+
+        Repeater {
+            model: [[0, 0], [1, 0], [0, 1], [1, 1]]
+            delegate: Item {
+                id: corner
+                required property var modelData
+                readonly property bool rightSide: modelData[0] === 1
+                readonly property bool bottomSide: modelData[1] === 1
+                x: rightSide ? dragOverView.width - dragOverView.brLen : 0
+                y: bottomSide ? dragOverView.height - dragOverView.brLen : 0
+                width: dragOverView.brLen
+                height: dragOverView.brLen
+
+                Rectangle {
+                    width: dragOverView.brLen
+                    height: dragOverView.brThick
+                    radius: dragOverView.brThick / 2
+                    color: dragOverView.accent
+                    anchors.top: corner.bottomSide ? undefined : parent.top
+                    anchors.bottom: corner.bottomSide ? parent.bottom : undefined
+                    anchors.left: corner.rightSide ? undefined : parent.left
+                    anchors.right: corner.rightSide ? parent.right : undefined
+                }
+                Rectangle {
+                    width: dragOverView.brThick
+                    height: dragOverView.brLen
+                    radius: dragOverView.brThick / 2
+                    color: dragOverView.accent
+                    anchors.top: corner.bottomSide ? undefined : parent.top
+                    anchors.bottom: corner.bottomSide ? parent.bottom : undefined
+                    anchors.left: corner.rightSide ? undefined : parent.left
+                    anchors.right: corner.rightSide ? parent.right : undefined
+                }
+            }
+        }
+
+        Column {
+            anchors.centerIn: parent
+            width: parent.width - 44 * pill.s
+            spacing: 7 * pill.s
+
+            Item {
+                anchors.horizontalCenter: parent.horizontalCenter
+                width: 26 * pill.s
+                height: 26 * pill.s
+
+                GlyphIcon {
+                    id: dragGlyph
+                    anchors.fill: parent
+                    stroke: 2
+                    color: dragOverView.accent
+                    name: (pill.dragStage === "bad" || pill.dragStage === "fail") ? "close"
+                        : (pill.dragStage === "installing" ? "reboot"
+                        : (pill.dragStage === "done" ? "check" : "download"))
+
+                    RotationAnimation on rotation {
+                        running: pill.dragStage === "installing"
+                        loops: Animation.Infinite
+                        from: 0
+                        to: 360
+                        duration: 900
+                    }
+                    onNameChanged: if (pill.dragStage !== "installing") rotation = 0
+                }
+            }
+
+            Text {
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: pill.dragStage === "bad" ? "Not an AppImage"
+                    : (pill.dragStage === "fail" ? "Install failed"
+                    : (pill.dragStage === "installing" ? "Installing"
+                    : (pill.dragStage === "done" ? "Installed" : "Drop to install")))
+                color: Theme.cream
+                font.family: Theme.font
+                font.pixelSize: 13 * pill.s
+                font.weight: Font.Medium
+            }
+
+            Text {
+                anchors.horizontalCenter: parent.horizontalCenter
+                width: parent.width
+                horizontalAlignment: Text.AlignHCenter
+                text: pill.dragName
+                color: Theme.subtle
+                font.family: Theme.font
+                font.pixelSize: 11 * pill.s
+                elide: Text.ElideMiddle
+                maximumLineCount: 1
+            }
+        }
+    }
+
     Item {
         id: rest
         anchors.fill: parent
-        opacity: (pill.expanded || pill.mode === "toast" || pill.mode === "osd" || pill.mode === "quickChoose" || pill.mode === "quickCount") ? 0 : Math.pow(pill.morphCloseness, 1.5)
+        opacity: (pill.expanded || pill.dragActive || pill.mode === "toast" || pill.mode === "osd" || pill.mode === "quickChoose" || pill.mode === "quickCount") ? 0 : Math.pow(pill.morphCloseness, 1.5)
         visible: opacity > 0.01
         Behavior on opacity { NumberAnimation { duration: pill.mode === "rest" ? Motion.fast : 260 } }
 
