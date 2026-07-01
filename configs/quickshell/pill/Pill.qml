@@ -167,6 +167,8 @@ Item {
     readonly property real quickCountH: 64 * s
     readonly property real dragOverW: 300 * s
     readonly property real dragOverH: 126 * s
+    readonly property real gameH: 34 * s
+    readonly property real gameW: barWindow ? barWindow.width : 1920
     readonly property real restCorner: 18 * s
     readonly property real openCorner: 22 * s
 
@@ -208,11 +210,12 @@ Item {
 
     readonly property string mode: dragActive ? "dragOver"
         : (surfaceOpen && surfaces[surface] !== undefined ? surface
+        : (Flags.gameMode ? "game"
         : (quickChoosing ? "quickChoose"
         : (quickCounting ? "quickCount"
         : (osdActive && !held ? "osd"
         : (toastActive && !held ? "toast"
-        : (expanded ? "hover" : "rest"))))))
+        : (expanded ? "hover" : "rest")))))))
 
     /**
      * AppImage drag-install state, live only while a file hovers the resting pill.
@@ -490,7 +493,7 @@ Item {
         precision: Flags.clockSeconds ? SystemClock.Seconds : SystemClock.Minutes
     }
 
-    property real morphRadius: (mode === "rest" || mode === "hover") ? restCorner : openCorner
+    property real morphRadius: (mode === "rest" || mode === "hover" || mode === "game") ? restCorner : openCorner
 
     /**
      * Target geometry for the non-surface morph modes. Surface sizes come from
@@ -504,7 +507,8 @@ Item {
         hover: () => Qt.size(hoverW, hoverH),
         quickChoose: () => Qt.size(quickChooseW, quickChooseH),
         quickCount:  () => Qt.size(quickCountW, quickCountH),
-        dragOver:    () => Qt.size(dragOverW, dragOverH)
+        dragOver:    () => Qt.size(dragOverW, dragOverH),
+        game:        () => Qt.size(gameW, gameH)
     })
 
     readonly property size targetSize: {
@@ -624,6 +628,10 @@ Item {
         id: body
         anchors.fill: parent
         radius: pill.morphRadius
+        topLeftRadius: pill.mode === "game" ? 0 : pill.morphRadius
+        topRightRadius: pill.mode === "game" ? 0 : pill.morphRadius
+        bottomLeftRadius: pill.mode === "game" ? 0 : pill.morphRadius
+        bottomRightRadius: pill.mode === "game" ? 0 : pill.morphRadius
         border.width: 1
         border.color: Theme.border
         gradient: Gradient {
@@ -981,10 +989,82 @@ Item {
         }
     }
 
+    /**
+     * Game-mode face: the pill docks into a flush top bar carrying only the clock
+     * and, when something plays, the current track. Everything else the desktop
+     * usually shows is deliberately gone.
+     */
+    Item {
+        id: gameBar
+        anchors.fill: parent
+        enabled: pill.mode === "game"
+        opacity: pill.mode === "game" ? Math.pow(pill.morphCloseness, 1.2) : 0
+        visible: opacity > 0.01
+
+        Behavior on opacity { NumberAnimation { duration: Motion.standard; easing.type: Motion.easeStandard } }
+
+        Row {
+            anchors.left: parent.left
+            anchors.leftMargin: 18 * pill.s
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: 9 * pill.s
+            opacity: Players.has ? 1 : 0
+            visible: opacity > 0.01
+            Behavior on opacity { NumberAnimation { duration: Motion.standard; easing.type: Motion.easeStandard } }
+
+            Rectangle {
+                anchors.verticalCenter: parent.verticalCenter
+                width: 26 * pill.s
+                height: 26 * pill.s
+                radius: 7 * pill.s
+                color: Theme.tileBg
+                clip: true
+                Image {
+                    anchors.fill: parent
+                    source: Players.artUrl
+                    fillMode: Image.PreserveAspectCrop
+                    asynchronous: true
+                    visible: status === Image.Ready
+                }
+            }
+            Column {
+                anchors.verticalCenter: parent.verticalCenter
+                Text {
+                    text: Players.title
+                    color: Theme.cream
+                    font.family: Theme.font
+                    font.pixelSize: 12.5 * pill.s
+                    font.weight: Font.Medium
+                    elide: Text.ElideRight
+                    width: Math.min(implicitWidth, 220 * pill.s)
+                }
+                Text {
+                    text: Players.artist
+                    color: Theme.dim
+                    font.family: Theme.font
+                    font.pixelSize: 10.5 * pill.s
+                    elide: Text.ElideRight
+                    width: Math.min(implicitWidth, 220 * pill.s)
+                    visible: text.length > 0
+                }
+            }
+        }
+
+        Text {
+            anchors.centerIn: parent
+            text: clock.hhmm
+            color: Theme.cream
+            font.family: Theme.font
+            font.pixelSize: 16 * pill.s
+            font.weight: Font.DemiBold
+            font.features: ({ "tnum": 1 })
+        }
+    }
+
     Item {
         id: rest
         anchors.fill: parent
-        opacity: (pill.expanded || pill.dragActive || pill.mode === "toast" || pill.mode === "osd" || pill.mode === "quickChoose" || pill.mode === "quickCount") ? 0 : Math.pow(pill.morphCloseness, 1.5)
+        opacity: (pill.expanded || pill.dragActive || pill.mode === "game" || pill.mode === "toast" || pill.mode === "osd" || pill.mode === "quickChoose" || pill.mode === "quickCount") ? 0 : Math.pow(pill.morphCloseness, 1.5)
         visible: opacity > 0.01
         Behavior on opacity { NumberAnimation { duration: pill.mode === "rest" ? Motion.fast : 260 } }
 

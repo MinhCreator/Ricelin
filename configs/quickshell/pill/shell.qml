@@ -40,6 +40,7 @@ ShellRoot {
     Component.onCompleted: {
         refresh();
         Devices.restore();
+        void GameMode.active;
     }
 
     /**
@@ -176,6 +177,7 @@ ShellRoot {
                 ScreenRec.quickChoosing = true;
             }
         }
+        function gameMode(mon: string): void { Flags.gameMode = !Flags.gameMode; }
         function sysmon(mon: string): void { root.toggleSurface(mon, "sysmon"); }
         function system(mon: string): void { root.toggleSurface(mon, "sysmon"); }
         function clipboard(mon: string): void { root.toggleSurface(mon, "clipboard"); }
@@ -216,14 +218,16 @@ ShellRoot {
             readonly property real topGap: 8 * s
             readonly property real restHeight: 38 * s
 
+            readonly property real gameBarH: 34 * s
+
             screen: modelData
             color: "transparent"
             exclusionMode: ExclusionMode.Normal
-            exclusiveZone: restHeight + topGap
+            exclusiveZone: Flags.gameMode ? gameBarH : (restHeight + topGap)
             aboveWindows: true
 
             anchors { top: true; left: true; right: true }
-            implicitHeight: restHeight + topGap
+            implicitHeight: Flags.gameMode ? gameBarH : (restHeight + topGap)
 
             mask: emptyReserve
             Region { id: emptyReserve }
@@ -396,8 +400,16 @@ ShellRoot {
                 Pill {
                     id: pill
                     anchors.top: parent.top
-                    anchors.topMargin: overlay.topGap
+                    anchors.topMargin: pill.mode === "game" ? 0 : overlay.topGap
                     anchors.horizontalCenter: parent.horizontalCenter
+
+                    Behavior on anchors.topMargin {
+                        NumberAnimation {
+                            duration: Motion.morph
+                            easing.type: Motion.easeMorph
+                            easing.bezierCurve: Motion.morphCurve
+                        }
+                    }
                     s: overlay.s
                     screenName: overlay.modelData.name
                     barWindow: overlay
