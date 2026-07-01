@@ -780,12 +780,13 @@ Item {
         return p.substring(p.lastIndexOf("/") + 1).replace(/\.appimage$/i, "");
     }
 
-    property bool installFailed: false
+    property bool installedAny: false
+    property string installAction: "new"
 
     function runNextInstall() {
         if (pill.installQueue.length === 0) {
-            pill.dragStage = pill.installFailed ? "fail" : "done";
-            (pill.installFailed ? dropBadTimer : dropDoneTimer).restart();
+            pill.dragStage = pill.installedAny ? "done" : "fail";
+            (pill.installedAny ? dropDoneTimer : dropBadTimer).restart();
             return;
         }
         var next = pill.installQueue.shift();
@@ -796,9 +797,15 @@ Item {
 
     Process {
         id: installProc
+        stdout: StdioCollector { id: installOut }
         onExited: (exitCode) => {
-            if (exitCode !== 0)
-                pill.installFailed = true;
+            if (exitCode === 0) {
+                pill.installedAny = true;
+                var line = installOut.text.trim().split("\n").pop();
+                var parts = line.split("\t");
+                if (parts.length >= 3)
+                    pill.installAction = parts[2];
+            }
             pill.runNextInstall();
         }
     }
@@ -855,7 +862,8 @@ Item {
             }
             pill.dragActive = true;
             pill.dragStage = "installing";
-            pill.installFailed = false;
+            pill.installedAny = false;
+            pill.installAction = "new";
             pill.installQueue = appimages;
             pill.runNextInstall();
         }
@@ -950,7 +958,9 @@ Item {
                 text: pill.dragStage === "bad" ? "Not an AppImage"
                     : (pill.dragStage === "fail" ? "Install failed"
                     : (pill.dragStage === "installing" ? "Installing"
-                    : (pill.dragStage === "done" ? "Installed" : "Drop to install")))
+                    : (pill.dragStage === "done" ? (pill.installAction === "updated" ? "Updated"
+                        : (pill.installAction === "reinstalled" ? "Reinstalled" : "Installed"))
+                    : "Drop to install")))
                 color: Theme.cream
                 font.family: Theme.font
                 font.pixelSize: 13 * pill.s

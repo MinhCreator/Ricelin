@@ -74,6 +74,9 @@
     { "id": "jq", "group": "core", "required": true, "desc": "JSON parsing in the helper scripts", "aur": false,
       "names": { "arch": "jq", "debian": "jq", "fedora": "jq", "suse": "jq" }, "fallback": null },
 
+    { "id": "desktop-file-utils", "group": "core", "required": true, "desc": "Registers dropped AppImages in the launcher", "aur": false,
+      "names": { "arch": "desktop-file-utils", "debian": "desktop-file-utils", "fedora": "desktop-file-utils", "suse": "desktop-file-utils" }, "fallback": null },
+
     { "id": "brightnessctl", "group": "core", "required": true, "desc": "Backlight control", "aur": false,
       "names": { "arch": "brightnessctl", "debian": "brightnessctl", "fedora": "brightnessctl", "suse": "brightnessctl" }, "fallback": null },
 

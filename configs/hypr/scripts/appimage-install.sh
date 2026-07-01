@@ -9,7 +9,7 @@
 # AppImage is trusted to the same degree as double-clicking it would be.
 #
 # Usage:
-#   appimage-install.sh install <path-to.AppImage>   -> prints "<slug>\t<name>"
+#   appimage-install.sh install <path-to.AppImage>   -> prints "<slug>\t<name>\t<new|updated|reinstalled>"
 #   appimage-install.sh remove  <slug>
 #   appimage-install.sh rename  <slug> <new name>
 #
@@ -65,21 +65,6 @@ prettify() {
 	printf '%s' "$s"
 }
 
-# Pick a registry key that is stable when the same binary is reinstalled but
-# unique when a different one would otherwise collide (Krita 4 vs Krita 5).
-unique_slug() {
-	local slug="$1" dest="$2" existing n=2 cand
-	existing="$(jq -r --arg s "$slug" '.[$s].appimagePath // empty' "$registry")"
-	if [ -n "$existing" ] && [ "$existing" != "$dest" ]; then
-		while :; do
-			cand="$slug-$n"
-			existing="$(jq -r --arg s "$cand" '.[$s].appimagePath // empty' "$registry")"
-			{ [ -z "$existing" ] || [ "$existing" = "$dest" ]; } && { slug="$cand"; break; }
-			n=$((n + 1))
-		done
-	fi
-	printf '%s' "$slug"
-}
 
 is_appimage() {
 	local f="$1"
@@ -94,10 +79,10 @@ is_appimage() {
 }
 
 reg_set() {
-	local slug="$1" name="$2" appimg="$3" icon="$4" desktop="$5" tmp
+	local slug="$1" name="$2" appimg="$3" icon="$4" desktop="$5" appid="$6" tmp
 	tmp="$(mktemp)"
-	jq --arg s "$slug" --arg n "$name" --arg a "$appimg" --arg i "$icon" --arg d "$desktop" \
-		'.[$s] = {name:$n, appimagePath:$a, iconPath:$i, desktopPath:$d}' "$registry" >"$tmp"
+	jq --arg s "$slug" --arg n "$name" --arg a "$appimg" --arg i "$icon" --arg d "$desktop" --arg p "$appid" \
+		'.[$s] = {name:$n, appimagePath:$a, iconPath:$i, desktopPath:$d, appId:$p}' "$registry" >"$tmp"
 	mv "$tmp" "$registry"
 }
 
@@ -105,20 +90,23 @@ install_appimage() {
 	local src="$1"
 	is_appimage "$src" || die "not an appimage: $src"
 
-	local fname slug dest
+	local fname dest slug
 	fname="$(basename "$src")"
 	dest="$apps_dir/$fname"
-	slug="$(unique_slug "$(slugify "$fname")" "$dest")"
+	slug="$(slugify "$fname")"
 
-	cp -f "$src" "$dest"
+	# Skip the copy when the drop already lives in ~/Applications, else cp aborts
+	# copying a file onto itself.
+	[ "$src" -ef "$dest" ] || cp -f "$src" "$dest"
 	chmod +x "$dest"
 
 	_tmpdir="$(mktemp -d)"
 	local tmp="$_tmpdir"
 
-	local name="" iconname="" categories="" wmclass=""
+	local name="" iconname="" categories="" wmclass="" root=""
 	if (cd "$tmp" && timeout 60 "$dest" --appimage-extract >/dev/null 2>&1) && [ -d "$tmp/squashfs-root" ]; then
-		local root="$tmp/squashfs-root" df
+		root="$tmp/squashfs-root"
+		local df
 		df="$(find "$root" -maxdepth 2 -name '*.desktop' | head -1)"
 		if [ -n "$df" ]; then
 			name="$(grep -m1 '^Name=' "$df" | cut -d= -f2- || true)"
@@ -126,10 +114,34 @@ install_appimage() {
 			categories="$(grep -m1 '^Categories=' "$df" | cut -d= -f2- || true)"
 			wmclass="$(grep -m1 '^StartupWMClass=' "$df" | cut -d= -f2- || true)"
 		fi
-		install_icon "$root" "$iconname" "$slug"
+	fi
+	[ -n "$name" ] || name="$(prettify "$fname")"
+
+	# Stable identity so a new version replaces the old, but a different app that
+	# happens to slugify the same gets its own numbered key instead of clobbering.
+	local appid="${wmclass:-${name:-$slug}}"
+	local action prevPath prevId
+	prevPath="$(jq -r --arg s "$slug" '.[$s].appimagePath // empty' "$registry")"
+	if [ -z "$prevPath" ]; then
+		action="new"
+	elif [ "$prevPath" -ef "$dest" ] 2>/dev/null || [ "$prevPath" = "$dest" ]; then
+		action="reinstalled"
+	else
+		prevId="$(jq -r --arg s "$slug" '.[$s].appId // empty' "$registry")"
+		if [ -z "$prevId" ] || [ "$prevId" = "$appid" ]; then
+			action="updated"
+			rm -f "$prevPath"
+		else
+			local n=2
+			while [ -n "$(jq -r --arg s "$slug-$n" '.[$s].appimagePath // empty' "$registry")" ]; do
+				n=$((n + 1))
+			done
+			slug="$slug-$n"
+			action="new"
+		fi
 	fi
 
-	[ -n "$name" ] || name="$(prettify "$fname")"
+	[ -n "$root" ] && install_icon "$root" "$iconname" "$slug"
 
 	local icon_path="$icon_dir/$slug.png"
 	[ -f "$icon_path" ] || { icon_path="$icon_dir/$slug.svg"; [ -f "$icon_path" ] || icon_path=""; }
@@ -147,10 +159,10 @@ install_appimage() {
 		echo "X-Ricelin-AppImage=true"
 	} >"$df_out"
 
-	reg_set "$slug" "$name" "$dest" "$icon_path" "$df_out"
+	reg_set "$slug" "$name" "$dest" "$icon_path" "$df_out" "$appid"
 	update-desktop-database "$desktop_dir" 2>/dev/null || true
 
-	printf '%s\t%s\n' "$slug" "$name"
+	printf '%s\t%s\t%s\n' "$slug" "$name" "$action"
 }
 
 # Pick the best icon out of an extracted squashfs and copy it to the icon dir.
@@ -158,6 +170,10 @@ install_appimage() {
 # .DirIcon, then any loose image at the squashfs root.
 install_icon() {
 	local root="$1" iconname="$2" slug="$3" found="" sz
+
+	# Clear any prior icon first so an update whose new bundle ships none does not
+	# keep showing the stale one.
+	rm -f "$icon_dir/$slug.png" "$icon_dir/$slug.svg"
 
 	case "$iconname" in */*) iconname="${iconname##*/}" ;; esac
 	case "$iconname" in *.png | *.svg | *.xpm) iconname="${iconname%.*}" ;; esac
@@ -182,7 +198,6 @@ install_icon() {
 	[ -n "$found" ] && [ -f "$found" ] || return 0
 	local ext="png"
 	case "$found" in *.svg) ext="svg" ;; esac
-	rm -f "$icon_dir/$slug.png" "$icon_dir/$slug.svg"
 	cp -f "$found" "$icon_dir/$slug.$ext"
 }
 
@@ -208,7 +223,7 @@ rename_appimage() {
 	desktop="$(jq -r --arg s "$slug" '.[$s].desktopPath // empty' "$registry")"
 	[ -n "$desktop" ] && [ -f "$desktop" ] || die "unknown slug: $slug"
 	tmp="$(mktemp)"
-	awk -v n="$newname" '!done && /^Name=/ { print "Name=" n; done = 1; next } { print }' "$desktop" >"$tmp" && mv "$tmp" "$desktop"
+	newname="$newname" awk 'BEGIN { n = ENVIRON["newname"] } !done && /^Name=/ { print "Name=" n; done = 1; next } { print }' "$desktop" >"$tmp" && mv "$tmp" "$desktop"
 	tmp="$(mktemp)"
 	jq --arg s "$slug" --arg n "$newname" '.[$s].name = $n' "$registry" >"$tmp" && mv "$tmp" "$registry"
 	update-desktop-database "$desktop_dir" 2>/dev/null || true

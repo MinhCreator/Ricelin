@@ -181,7 +181,8 @@ PillSurface {
         anchors.topMargin: 6 * root.s
         anchors.left: parent.left
         anchors.right: parent.right
-        anchors.bottom: parent.bottom
+        anchors.bottom: hint.visible ? hint.top : parent.bottom
+        anchors.bottomMargin: hint.visible ? 4 * root.s : 0
         spacing: 5 * root.s
         clip: true
         boundsBehavior: Flickable.StopAtBounds
@@ -394,6 +395,33 @@ PillSurface {
                     }
                 }
             }
+        }
+    }
+
+    /** Faint nudge so the drag-to-install gesture is discoverable at all. */
+    Row {
+        id: hint
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: 2 * root.s
+        spacing: 5 * root.s
+        visible: root.query.length === 0 && root.editIndex === -1
+        opacity: 0.6
+
+        GlyphIcon {
+            anchors.verticalCenter: parent.verticalCenter
+            width: 12 * root.s
+            height: 12 * root.s
+            stroke: 1.7
+            name: "download"
+            color: Theme.faint
+        }
+        Text {
+            anchors.verticalCenter: parent.verticalCenter
+            text: "Drag an AppImage onto the pill"
+            color: Theme.faint
+            font.family: Theme.font
+            font.pixelSize: 10.5 * root.s
         }
     }
 }
