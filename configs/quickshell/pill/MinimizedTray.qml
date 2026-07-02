@@ -96,6 +96,13 @@ Row {
                     Hyprland.dispatch('hl.dsp.window.move({ workspace = ' + root.restoreWorkspace() + ', window = "address:' + addr + '" })');
                 }
             }
+
+            Tooltip {
+                s: root.s
+                placement: "below"
+                title: chip.modelData.title
+                show: area.containsMouse
+            }
         }
     }
 }
