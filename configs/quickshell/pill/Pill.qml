@@ -544,10 +544,24 @@ Item {
     property bool hoverSoulGate: false
     readonly property bool hoverArrived: mode === "hover" && morphCloseness > 0.55
     onHoverArrivedChanged: if (hoverArrived) hoverSoulGate = true
-    onModeChanged: if (mode !== "hover") {
-        hoverSoulGate = false;
-        soulTarget = "";
-        soulWsIndex = -1;
+
+    /**
+     * Rest and hover sit a few dozen pixels apart, so the 420ms morph is nearly
+     * all settle tail on that hop and reads sluggish. Both endpoints in the
+     * rest/hover pair get the shorter glide; every real surface morph keeps the
+     * full duration.
+     */
+    property string lastMode: "rest"
+    property bool hoverHop: false
+
+    onModeChanged: {
+        hoverHop = (mode === "hover" || mode === "rest") && (lastMode === "hover" || lastMode === "rest");
+        lastMode = mode;
+        if (mode !== "hover") {
+            hoverSoulGate = false;
+            soulTarget = "";
+            soulWsIndex = -1;
+        }
     }
     onHoverSoulGateChanged: if (hoverSoulGate) kanjiFlashAnim.restart()
 
@@ -562,9 +576,9 @@ Item {
         NumberAnimation { target: pill; property: "kanjiFlash"; to: 0; duration: 320; easing.type: Easing.OutCubic }
     }
 
-    Behavior on width { NumberAnimation { duration: Motion.morph; easing.type: Motion.easeMorph; easing.bezierCurve: Motion.morphCurve } }
-    Behavior on height { NumberAnimation { duration: Motion.morph; easing.type: Motion.easeMorph; easing.bezierCurve: Motion.morphCurve } }
-    Behavior on morphRadius { NumberAnimation { duration: Motion.morph; easing.type: Motion.easeMorph; easing.bezierCurve: Motion.morphCurve } }
+    Behavior on width { NumberAnimation { duration: pill.hoverHop ? Motion.glide : Motion.morph; easing.type: Motion.easeMorph; easing.bezierCurve: Motion.morphCurve } }
+    Behavior on height { NumberAnimation { duration: pill.hoverHop ? Motion.glide : Motion.morph; easing.type: Motion.easeMorph; easing.bezierCurve: Motion.morphCurve } }
+    Behavior on morphRadius { NumberAnimation { duration: pill.hoverHop ? Motion.glide : Motion.morph; easing.type: Motion.easeMorph; easing.bezierCurve: Motion.morphCurve } }
 
     Rectangle {
         id: bud
