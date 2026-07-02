@@ -62,3 +62,5 @@ docs/
 /configs/grub/probe-sda4.sh
 /configs/grub/10_ricelin
 __pycache__/
+configs/hypr/hyprsunset.conf
+.impeccable/
