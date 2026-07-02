@@ -28,7 +28,7 @@ Item {
     readonly property var subject: pendingSubject ? pendingSubject : Players.active
     readonly property bool subjectHas: subject !== null
     readonly property bool subjectPlaying: subjectHas && subject.isPlaying
-    readonly property string subjectTitle: subjectHas && subject.trackTitle ? subject.trackTitle : ""
+    readonly property string subjectTitle: subjectHas ? Players.refineTitle(subject, subject.trackTitle || Players.labelOf(subject)) : ""
     readonly property string subjectArtist: subjectHas ? Theme.joinArtists(subject.trackArtists, subject.trackArtist) : ""
     readonly property string subjectIcon: subjectHas ? Players.appIconFor(subject) : ""
 
