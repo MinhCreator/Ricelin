@@ -31,7 +31,7 @@ SettingsSurface {
     rows: []
 
     readonly property string animPath: Quickshell.env("HOME") + "/.config/hypr/modules/animations.lua"
-    readonly property string mainCurve: "easeOutQuint"
+    readonly property string mainCurve: "pillMorph"
 
     property bool animOn: true
     property real speed: 3
