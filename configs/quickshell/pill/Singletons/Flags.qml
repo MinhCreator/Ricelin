@@ -19,6 +19,7 @@ Singleton {
     property alias clockSeconds: adapter.clockSeconds
     property alias showGlyphs: adapter.showGlyphs
     property alias paletteMode: adapter.paletteMode
+    property alias wallpaperDir: adapter.wallpaperDir
     property alias uiScale: adapter.uiScale
     property alias reduceMotion: adapter.reduceMotion
     property alias manualHue: adapter.manualHue
@@ -71,6 +72,8 @@ Singleton {
             property bool clockSeconds: false
             property bool showGlyphs: true
             property string paletteMode: "static"
+            /** Empty means fall back to ~/Ricelin/wallpapers. Lives in user state so an in-app update never clobbers a custom folder. */
+            property string wallpaperDir: ""
             property real uiScale: 1.0
             property bool reduceMotion: false
             property int manualHue: 30
