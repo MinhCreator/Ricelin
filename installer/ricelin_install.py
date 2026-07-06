@@ -680,12 +680,15 @@ def run(args):
                     continue
                 head = "would deploy" if dry else "deployed"
                 extra = f" (backup {action['backup']})" if action.get("backup") else ""
+                if action.get("preserved"):
+                    extra += f" (kept {len(action['preserved'])} user files)"
                 print(f"  {head}: {action['item']} -> {action['dest']}{extra}")
         except OSError as exc:
             record(False, str(exc), "Deploy configs",
                    "Check ~/.config permissions and re-run the installer.")
         try:
-            for action in deploy.neutralize(config_root=deploy.CONFIG_ROOT, apply=not dry):
+            for action in deploy.neutralize(config_root=deploy.CONFIG_ROOT, apply=not dry,
+                                            src=args.source):
                 head = "would neutralize" if dry else "neutralized"
                 print(f"  {head}: {action['step']}")
         except OSError as exc:

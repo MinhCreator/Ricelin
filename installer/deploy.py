@@ -46,6 +46,24 @@ DEPLOY_SET = [
 # set leaves them out on purpose.
 GRUB_EXCLUDED = ["grub/install-torii.sh", "grub/probe-sda4.sh", "grub/10_ricelin"]
 
+# User-owned config files a re-run must never reset: the same protected set the
+# update engine three-way merges (hand-mirrored from ricelin-update.py, which
+# ships standalone and cannot be imported from here). On a managed re-deploy
+# these are carried across the replace instead of reverting to the repo copy,
+# so a curl|sh re-run stops undoing Settings (idle timeouts, keybinds, layout).
+PRESERVED = [
+    "hypr/modules/decoration.lua",
+    "hypr/modules/binds.lua",
+    "hypr/modules/monitors.lua",
+    "hypr/modules/input.lua",
+    "hypr/modules/env.lua",
+    "hypr/modules/autostart.lua",
+    "hypr/modules/animations.lua",
+    "hypr/modules/stash-apps.lua",
+    "hypr/modules/spaces.lua",
+    "hypr/hypridle.conf",
+]
+
 # The single auto monitor that replaces a user's hand-tuned layout. Their real
 # monitors.lua is kept beside it as monitors.lua.example.
 MON_AUTO = """hl.monitor({
@@ -225,6 +243,8 @@ def deploy(src=CONFIGS, config_root=CONFIG_ROOT, apply=False):
         exists = dest.exists() or dest.is_symlink()
         managed = _is_managed(dest) if exists else False
         bak = backup(dest, apply=False) if (exists and not managed) else None
+        keep = [rel for rel in PRESERVED
+                if rel.startswith(dest_rel + "/") and (config_root / rel).is_file()] if managed else []
         actions.append({
             "item": name,
             "action": "replace" if managed else "deploy",
@@ -232,10 +252,12 @@ def deploy(src=CONFIGS, config_root=CONFIG_ROOT, apply=False):
             "dest": str(dest),
             "backup": bak,
             "managed": managed,
+            "preserved": keep,
         })
         if not apply:
             continue
         if managed:
+            saved = {rel: (config_root / rel).read_bytes() for rel in keep}
             marker = _marker_for(dest, is_dir)
             if marker.exists():
                 marker.unlink()
@@ -243,7 +265,10 @@ def deploy(src=CONFIGS, config_root=CONFIG_ROOT, apply=False):
         else:
             # Foreign config moves aside first, so it is never lost to _rm.
             backup(dest, apply=True)
+            saved = {}
         _copy(src_path, dest)
+        for rel, data in saved.items():
+            (config_root / rel).write_bytes(data)
         _marker_for(dest, is_dir).touch()
     return actions
 
@@ -328,10 +353,23 @@ def _render_fastfetch(ff_dir, palette, apply):
     return str(ff_dir / "config.jsonc")
 
 
-def neutralize(config_root=CONFIG_ROOT, apply=False):
+def _pristine(rel, config_root, src):
+    """
+    True when the live file is still the byte-exact repo copy, i.e. deploy just
+    put it there. A preserved user file (Settings edits, own layout) differs and
+    must not be neutralized back to a generic default on a re-run.
+    """
+    live = Path(config_root) / rel
+    source = Path(src) / rel
+    return live.is_file() and source.is_file() and live.read_bytes() == source.read_bytes()
+
+
+def neutralize(config_root=CONFIG_ROOT, apply=False, src=CONFIGS):
     """
     Make the deployed configs portable. Operates in place on what deploy() put
     in ~/.config and returns the action list; nothing is written unless apply.
+    The monitors and env rewrites only touch a file that is still the pristine
+    repo copy, so a user file preserved across a re-deploy stays as it is.
 
       monitors.lua -> keep the user's layout as monitors.lua.example, write the
                       single auto monitor (output="", preferred, auto, scale 1)
@@ -351,7 +389,7 @@ def neutralize(config_root=CONFIG_ROOT, apply=False):
     actions = []
 
     mon = config_root / "hypr" / "modules" / "monitors.lua"
-    if mon.is_file():
+    if _pristine("hypr/modules/monitors.lua", config_root, src):
         example = mon.with_name(mon.name + ".example")
         save_example = not example.exists()
         actions.append({"step": "monitors", "path": str(mon),
@@ -363,7 +401,7 @@ def neutralize(config_root=CONFIG_ROOT, apply=False):
             mon.write_text(MON_AUTO)
 
     env = config_root / "hypr" / "modules" / "env.lua"
-    if env.is_file():
+    if _pristine("hypr/modules/env.lua", config_root, src):
         nvidia = _has_nvidia()
         actions.append({"step": "env", "path": str(env), "nvidia": nvidia,
                         "wrote": "base env" + (" + nvidia" if nvidia else ", nvidia dropped")})
@@ -593,6 +631,33 @@ def _selftest():
               "genuine pristine ghostty.bak left untouched")
         check(_is_managed(root / "ghostty"),
               "fresh managed ghostty deployed in place")
+
+    # 10. re-run guard (FIX #17): a full second install pass (deploy + neutralize)
+    # must not reset user-owned config. Settings-written hypridle.conf and a
+    # hand-tuned monitors.lua have to survive byte-exact.
+    with tempfile.TemporaryDirectory() as tmp4:
+        root = Path(tmp4) / "config"
+        root.mkdir()
+        deploy(config_root=root, apply=True)
+        neutralize(config_root=root, apply=True)
+        idle_off = "general {\n    lock_cmd = /home/testuser/lock.sh\n}\n"
+        mon_user = "hl.monitor({ output = \"HDMI-A-1\", mode = \"preferred\" })\n"
+        (root / "hypr" / "hypridle.conf").write_text(idle_off)
+        (root / "hypr" / "modules" / "monitors.lua").write_text(mon_user)
+        plan = deploy(config_root=root, apply=True)
+        hypr_act = next(a for a in plan if a["item"] == "hypr")
+        check("hypr/hypridle.conf" in hypr_act["preserved"]
+              and "hypr/modules/monitors.lua" in hypr_act["preserved"],
+              "re-deploy plans to carry the user files across the replace")
+        check((root / "hypr" / "hypridle.conf").read_text() == idle_off,
+              "user hypridle.conf survived the re-deploy (lock stays off)")
+        neutralize(config_root=root, apply=True)
+        check((root / "hypr" / "hypridle.conf").read_text() == idle_off,
+              "second neutralize left the user hypridle.conf alone")
+        check((root / "hypr" / "modules" / "monitors.lua").read_text() == mon_user,
+              "user monitors.lua survived re-deploy + neutralize")
+        check((root / "hypr" / "scripts" / "lock.sh").exists(),
+              "non-protected code files still refreshed on re-deploy")
 
     print(f"\n:: all {passed} checks passed")
     return 0
