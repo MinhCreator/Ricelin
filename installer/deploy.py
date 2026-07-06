@@ -137,13 +137,16 @@ def _copy(src, dest):
     """
     Copy a file or whole tree from the clone into place, keeping modes. Dev cruft
     (the git-tracked test_*.py harnesses and any compiled __pycache__/*.pyc) is
-    left behind so it never lands in ~/.config.
+    left behind so it never lands in ~/.config. The live hypridle.conf is skipped
+    too: it is untracked (Settings owns it) and only exists in a dev work-tree,
+    so deploying from one must behave like deploying from a clean clone, where
+    neutralize seeds it from the example.
     """
     src, dest = Path(src), Path(dest)
     dest.parent.mkdir(parents=True, exist_ok=True)
     if src.is_dir():
         shutil.copytree(src, dest, ignore=shutil.ignore_patterns(
-            "test_*.py", "__pycache__", "*.pyc"))
+            "test_*.py", "__pycache__", "*.pyc", "hypridle.conf"))
     else:
         shutil.copy2(src, dest)
 
@@ -428,7 +431,16 @@ def neutralize(config_root=CONFIG_ROOT, apply=False, src=CONFIGS):
         if apply and count:
             ght.write_text(text.replace("/home/erik", home))
 
+    # The live hypridle.conf is untracked (Settings owns it, and tracking it made
+    # git pulls revert a user's auto-lock choice), so a fresh deploy seeds it from
+    # the shipped example once, then the home rewrite runs on whatever is there.
     idle = config_root / "hypr" / "hypridle.conf"
+    idle_example = idle.with_name(idle.name + ".example")
+    if not idle.is_file() and idle_example.is_file():
+        actions.append({"step": "hypridle-seed", "path": str(idle),
+                        "wrote": "from hypridle.conf.example"})
+        if apply:
+            shutil.copy2(idle_example, idle)
     if idle.is_file():
         home = str(Path.home())
         text = idle.read_text()
@@ -548,11 +560,15 @@ def _selftest():
         check((root / "fish.bak" / "config.fish").read_text().strip().endswith("user fish"),
               "pristine fish.bak never clobbered on re-deploy")
 
-        # 5. neutralize dry-run: a plan with the expected steps, nothing written
+        # 5. neutralize dry-run: a plan with the expected steps, nothing written.
+        # hypridle.conf is untracked, so on a fresh deploy only the seed step
+        # shows; the rewrite step appears once the file exists.
         plan = neutralize(config_root=root, apply=False)
         steps = {a["step"] for a in plan}
-        check({"monitors", "env", "ghostty", "hypridle", "fish", "fastfetch", "grub-excluded"} <= steps,
+        check({"monitors", "env", "ghostty", "hypridle-seed", "fish", "fastfetch", "grub-excluded"} <= steps,
               "neutralize plan has every step")
+        check(not (root / "hypr" / "hypridle.conf").exists(),
+              "neutralize dry-run did not seed hypridle.conf")
         check("DP-1" in (root / "hypr" / "modules" / "monitors.lua").read_text(),
               "neutralize dry-run did not rewrite monitors.lua")
 

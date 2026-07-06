@@ -34,6 +34,10 @@ configs/hypr/ghosttype.lua
 # Local-only hypr binds (machine-specific scripts, not for public rice)
 configs/hypr/modules/private.lua
 
+# Live idle/lock timeouts, owned by Settings; tracked template is the .example.
+# Tracked it used to revert git-pull users' auto-lock choice on every pull (#17)
+configs/hypr/hypridle.conf
+
 # Personal Discord push-to-talk + virtual PipeWire nodes (machine hardware), local only
 configs/hypr/discord.lua
 configs/hypr/scripts/discord-mic.sh
