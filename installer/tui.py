@@ -292,11 +292,13 @@ def detected(rows):
 
 
 def info(lines):
-    """Print a quiet block of context hung on the connector gutter."""
+    """Print a quiet block of context hung on the connector gutter, word-wrapped."""
     if isinstance(lines, str):
         lines = [lines]
     width = _width()
-    out = [_gutter([(DIM, line)], width) for line in lines]
+    inner = max(8, width - 5)
+    out = [_gutter([(DIM, piece)], width)
+           for line in lines for piece in _wrap(line, inner)]
     out.append(_spacer(width))
     _write("\n".join(out) + "\n")
 
@@ -341,9 +343,17 @@ def closing(title, tally, steps, attention, notes=None):
         out.append(_header(OUTRO, VERM, head, BRIGHT, width))
         labw = max((_vis(label) for label, _ in attention), default=0)
         for label, cmd in attention:
-            out.append(_gutter(
-                [(FLAME, DONE + " "), (CREAM, label),
-                 ("", " " * (labw - _vis(label) + 3)), (BRIGHT, cmd)], width))
+            # Aligned one-liner when it fits; otherwise the instruction wraps onto
+            # its own indented lines, since a clipped fix-hint is a useless one.
+            pad = labw - _vis(label) + 3
+            if 7 + _vis(label) + pad + _vis(cmd) <= width:
+                out.append(_gutter(
+                    [(FLAME, DONE + " "), (CREAM, label),
+                     ("", " " * pad), (BRIGHT, cmd)], width))
+            else:
+                out.append(_gutter([(FLAME, DONE + " "), (CREAM, label)], width))
+                for piece in _wrap(cmd, max(8, width - 11)):
+                    out.append(_gutter([("", "  "), (BRIGHT, piece)], width))
         out.append(_spacer(width))
 
     _write("\n".join(out) + "\n")
@@ -482,6 +492,8 @@ def select_one(title, options, default=0):
     dot tracks the focused row, so whatever is highlighted on enter is the result.
     Returns the chosen index, or raises KeyboardInterrupt if the user cancels.
     """
+    if not options:
+        raise ValueError(f"select_one({title!r}) needs at least one option")
     with _Keys() as keys:
         state = {"idx": default}
 
@@ -508,9 +520,12 @@ def select_one(title, options, default=0):
 def select_many(title, options, preselect=()):
     """
     Multiselect prompt. Space toggles the focused row, enter confirms. options is a
-    list of (label, desc, recommended_bool); preselect seeds the ticked rows.
+    list of (label, desc, recommended_bool); preselect seeds the ticked rows. An
+    empty option list short-circuits to no choices instead of drawing a dead menu.
     Returns the sorted list of chosen indices, or raises KeyboardInterrupt.
     """
+    if not options:
+        return []
     with _Keys() as keys:
         state = {"idx": 0, "checked": set(preselect)}
 

@@ -207,6 +207,8 @@ def _selftest():
     # repos
     assert repo_for(by_id["hyprland"], "fedora") == "copr:solopasha/hyprland"
     assert repo_for(by_id["quickshell"], "suse") == "obs:home:AvengeMedia:danklinux"
+    assert repo_for(by_id["quickshell"], "fedora") == "copr:errornointernet/quickshell"
+    assert repo_for(by_id["quickshell"], "debian") == "ppa:avengemedia/danklinux"
     assert repo_for(by_id["hyprland"], "arch") is None
 
     # plan covers core, skips full, marks fallbacks
@@ -216,12 +218,39 @@ def _selftest():
     ghostty = next(r for r in core if r["id"] == "ghostty")
     assert ghostty["action"] == "fallback" and ghostty["target"] == "ghostty"
 
-    print("distro.py selftest: all", _count_asserts(), "checks passed")
+    _check_token_mirrors()
+
+    print("distro.py selftest: all checks passed")
     print("detected here:", detect_pretty(), "->", detect_family())
 
 
-def _count_asserts():
-    return 29
+def _check_token_mirrors():
+    """
+    The family tokens are hand-mirrored into install.sh (shell can't import this
+    module) and ricelin-update.py (ships standalone on user boxes). Nothing at
+    runtime can enforce the copies, so the selftest does: parse both files and
+    fail loud the moment one drifts.
+    """
+    import importlib.util
+    import re
+
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+    sh = open(os.path.join(root, "install.sh")).read()
+    for fam, var in (("arch", "ARCH_IDS"), ("debian", "DEBIAN_IDS"),
+                     ("fedora", "FEDORA_IDS"), ("suse", "SUSE_IDS")):
+        m = re.search(var + r'="([^"]*)"', sh)
+        assert m, f"{var} missing from install.sh"
+        assert set(m.group(1).split()) == set(_FAMILY_TOKENS[fam]), \
+            f"install.sh {var} drifted from _FAMILY_TOKENS[{fam!r}]"
+
+    engine_path = os.path.join(root, "configs", "hypr", "scripts", "ricelin-update.py")
+    spec = importlib.util.spec_from_file_location("_ricelin_update", engine_path)
+    engine = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(engine)
+    for fam in _FAMILY_TOKENS:
+        assert set(engine.FAMILY_TOKENS[fam]) == set(_FAMILY_TOKENS[fam]), \
+            f"engine FAMILY_TOKENS[{fam!r}] drifted from distro.py"
 
 
 if __name__ == "__main__":

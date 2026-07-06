@@ -85,11 +85,13 @@ def apply(source, dry):
         return actions
 
     # The caller already gated on bootloader == grub; guard anyway so a box with
-    # grub-mkconfig on PATH but no /boot/grub never gets a half-written theme.
-    if not os.path.isdir(GRUB_ROOT):
+    # grub-mkconfig on PATH but no /boot/grub never gets a half-written theme, and
+    # a missing defaults file never gets fabricated as a one-line GRUB_THEME stub.
+    if not os.path.isdir(GRUB_ROOT) or not os.path.isfile(GRUB_DEFAULT):
+        missing = GRUB_ROOT if not os.path.isdir(GRUB_ROOT) else GRUB_DEFAULT
         for action in actions:
             action["ok"] = False
-            action["detail"] = f"{GRUB_ROOT} not found, not a GRUB install"
+            action["detail"] = f"{missing} not found, not a standard GRUB install"
         return actions
 
     for action in actions:

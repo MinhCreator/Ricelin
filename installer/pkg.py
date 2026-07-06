@@ -103,12 +103,25 @@ def _obs_build_target(os_release_path="/etc/os-release"):
     return "openSUSE_Tumbleweed"
 
 
+def _ubuntu_like(os_release_path="/etc/os-release"):
+    """
+    True when the box is Ubuntu or an Ubuntu derivative, read off ID and ID_LIKE.
+    A Launchpad PPA only serves Ubuntu series, so plain Debian must never get one
+    added; there add-apt-repository would write a source with no matching release.
+    """
+    data = distro._os_release(os_release_path)
+    ids = [data.get("ID", "").lower()] + data.get("ID_LIKE", "").lower().split()
+    return "ubuntu" in ids
+
+
 def enable_repo_argv(repo, family):
     """
     Turn a manifest repo string into the ordered argv steps that enable it. Always
     a list of argvs so the caller runs them with one loop: copr first pulls the
     dnf plugin that ships the copr subcommand (absent on a minimal Fedora) then
-    enables the repo; obs adds the repo then refreshes to import its signing key.
+    enables the repo; obs adds the repo then refreshes to import its signing key;
+    ppa applies only on an Ubuntu-like box and returns [] on plain Debian, where
+    the package must come from the distro's own archive instead.
 
     The copr subcommand lives in a different package across the dnf split:
     dnf-plugins-core on dnf4 (Fedora <=40) and dnf5-plugins on dnf5 (Fedora 41+).
@@ -129,6 +142,14 @@ def enable_repo_argv(repo, family):
              "dnf install -y dnf-plugins-core 2>/dev/null; "
              "dnf install -y dnf5-plugins 2>/dev/null; true"],
             ["dnf", "copr", "enable", "-y", owner_name],
+        ]
+    if repo.startswith("ppa:") and family == "debian":
+        if not _ubuntu_like():
+            return []
+        return [
+            ["apt-get", "install", "-y", "software-properties-common"],
+            ["add-apt-repository", "-y", repo],
+            ["apt-get", "update"],
         ]
     if repo.startswith("obs:") and family == "suse":
         project = repo[len("obs:"):]
@@ -169,14 +190,17 @@ def ensure_aur_helper_steps():
     The build dir is a fixed path string, not a live mkdtemp, so merely composing
     the step list (a dry-run preview does exactly that) creates nothing on disk; the
     git clone is what brings the directory into being when the steps actually run.
+    The clone step wipes any leftover from an earlier failed attempt first, so a
+    retry never dies on "destination path already exists".
     """
     if aur_helper() is not None:
         return []
-    build_dir = os.path.join(tempfile.gettempdir(), "ricelin-yay-build")
+    build_dir = shlex.quote(os.path.join(tempfile.gettempdir(), "ricelin-yay-build"))
     return [
         ["sudo", "pacman", "-S", "--needed", "--noconfirm", "git", "base-devel"],
-        ["git", "clone", "https://aur.archlinux.org/yay-bin.git", build_dir],
-        ["sh", "-c", f"cd {shlex.quote(build_dir)} && makepkg -si --noconfirm"],
+        ["sh", "-c",
+         f"rm -rf {build_dir} && git clone https://aur.archlinux.org/yay-bin.git {build_dir}"],
+        ["sh", "-c", f"cd {build_dir} && makepkg -si --noconfirm"],
     ]
 
 
@@ -233,6 +257,18 @@ def _selftest():
     assert _obs_build_target(_write_os_release({"ID": "opensuse-tumbleweed", "VERSION_ID": "20260626"})) \
         == "openSUSE_Tumbleweed"
     checks += 2
+
+    # ppa gates on Ubuntu-likeness: full steps there, [] on plain Debian.
+    ubuntu_osr = _write_os_release({"ID": "linuxmint", "ID_LIKE": "ubuntu debian"})
+    debian_osr = _write_os_release({"ID": "debian"})
+    assert _ubuntu_like(ubuntu_osr) is True
+    assert _ubuntu_like(debian_osr) is False
+    ppa = enable_repo_argv("ppa:avengemedia/danklinux", "debian")
+    if _ubuntu_like():
+        assert ppa[1] == ["add-apt-repository", "-y", "ppa:avengemedia/danklinux"]
+    else:
+        assert ppa == []
+    checks += 3
 
     obs = enable_repo_argv("obs:home:AvengeMedia:danklinux", "suse")
     assert obs[0] == ["zypper", "--non-interactive", "addrepo",

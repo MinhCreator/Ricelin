@@ -92,11 +92,38 @@ fetch() {
 	fi
 }
 
+# True when a flag is among the forwarded installer args.
+has_flag() {
+	flag="$1"; shift
+	case " $* " in
+	*" $flag "*) return 0 ;;
+	esac
+	return 1
+}
+
 main() {
 	say "Preparing installer interface..."
 	[ "$(uname -s)" = Linux ] || die "Ricelin only installs on Linux"
 
-	ensure_deps "$(detect_family)"
+	# A box that already carries the managed deploy updates through the in-app
+	# updater, not through a full re-install; re-running the one-liner is almost
+	# always someone looking for "how do I update". --reinstall forces the wizard.
+	if [ -f "${XDG_CONFIG_HOME:-$HOME/.config}/hypr/.ricelin-managed" ] \
+		&& ! has_flag --reinstall "$@" && ! has_flag --uninstall "$@"; then
+		say "Ricelin is already installed."
+		say "  Update:       open Settings > Updates in the pill, or run: ricelin update"
+		say "  Re-install:   curl -fsSL https://raw.githubusercontent.com/Gakuseei/Ricelin/main/install.sh | sh -s -- --reinstall"
+		say "  Uninstall:    ricelin uninstall"
+		exit 0
+	fi
+
+	fam="$(detect_family)"
+	if [ "$fam" = unknown ]; then
+		say "Note: this distro is not a supported family (arch/debian/fedora/suse)."
+		say "No packages will be installed; configs deploy at your own risk."
+	fi
+
+	ensure_deps "$fam"
 	fetch
 
 	exec python3 "$DIR/installer/ricelin_install.py" --source "$DIR/configs" "$@"

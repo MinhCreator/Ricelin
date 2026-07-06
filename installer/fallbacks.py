@@ -12,6 +12,9 @@ decides when and how to execute them; this module only describes the work.
 """
 import os
 import shlex
+import shutil
+import subprocess
+from pathlib import Path
 
 from distro import PM, load_manifest
 
@@ -21,6 +24,24 @@ from distro import PM, load_manifest
 FONT_DIR = os.path.expanduser("~/.local/share/fonts")
 ICON_DIR = os.path.expanduser("~/.local/share/icons")
 BIN_DIR = os.path.expanduser("~/.local/bin")
+
+# Source builds work under the user's cache, never the invocation CWD (a curl|sh
+# run sits in $HOME and would litter it with clones). Each build wipes its own
+# subdir first, so a re-run never trips over a stale checkout.
+BUILD_DIR = os.path.expanduser("~/.cache/ricelin/build")
+
+
+def _clone_step(desc, url, name, extra_args=""):
+    """One shell step that clears the build subdir and clones url into it fresh."""
+    dest = shlex.quote(os.path.join(BUILD_DIR, name))
+    return {"desc": desc,
+            "shell": f"mkdir -p {shlex.quote(BUILD_DIR)} && rm -rf {dest} && "
+                     f"git clone {extra_args}{shlex.quote(url)} {dest}"}
+
+
+def _in_build(name, cmd):
+    """Run cmd inside the named build subdir, by absolute path."""
+    return f"cd {shlex.quote(os.path.join(BUILD_DIR, name))} && {cmd}"
 
 # One shell prelude that guarantees cargo is on PATH: bootstrap rustup when cargo
 # is missing, then source ~/.cargo/env so the freshly installed cargo is reachable
@@ -63,15 +84,18 @@ def _cargo(pkg, family):
     """
     crate = pkg["id"]
     if crate == "swww":
+        release = os.path.join(BUILD_DIR, "swww", "target", "release")
         return [
-            {"desc": "no swww crate on crates.io, clone the source from github",
-             "run": ["git", "clone", "https://github.com/LGFae/swww"]},
+            _clone_step("no swww crate on crates.io, clone the source from github",
+                        "https://github.com/LGFae/swww", "swww"),
             {"desc": "make sure cargo is here, then build swww and swww-daemon (release)",
-             "shell": _CARGO_PREP + "; cd swww && cargo build --release"},
+             "shell": _CARGO_PREP + "; " + _in_build("swww", "cargo build --release")},
             {"desc": "install both swww binaries into ~/.local/bin, no root needed",
-             "shell": "mkdir -p %s && install -m755 "
-                      "swww/target/release/swww swww/target/release/swww-daemon %s"
-                      % (shlex.quote(BIN_DIR), shlex.quote(BIN_DIR))},
+             "shell": "mkdir -p %s && install -m755 %s %s %s"
+                      % (shlex.quote(BIN_DIR),
+                         shlex.quote(os.path.join(release, "swww")),
+                         shlex.quote(os.path.join(release, "swww-daemon")),
+                         shlex.quote(BIN_DIR))},
         ]
     return [
         {"desc": "make sure cargo is here, then build %s from crates.io" % crate,
@@ -95,12 +119,12 @@ def _ghostty(pkg, family):
              "run": ["sudo", "dnf", "install", "-y", "ghostty"]},
         ]
     return [
-        {"desc": "no ghostty package here, clone the source (the build needs the exact Zig it pins)",
-         "run": ["git", "clone", "--depth", "1", "https://github.com/ghostty-org/ghostty"]},
+        _clone_step("no ghostty package here, clone the source (the build needs the exact Zig it pins)",
+                    "https://github.com/ghostty-org/ghostty", "ghostty", extra_args="--depth 1 "),
         {"desc": "compile a release build with Zig",
-         "shell": "cd ghostty && zig build -Doptimize=ReleaseFast"},
+         "shell": _in_build("ghostty", "zig build -Doptimize=ReleaseFast")},
         {"desc": "install ghostty into /usr",
-         "shell": "cd ghostty && sudo zig build -p /usr -Doptimize=ReleaseFast"},
+         "shell": _in_build("ghostty", "sudo zig build -p /usr -Doptimize=ReleaseFast")},
     ]
 
 
@@ -114,12 +138,12 @@ def _dotool(pkg, family):
     rule = ('KERNEL=="uinput", SUBSYSTEM=="misc", GROUP="input", '
             'MODE="0660", OPTIONS+="static_node=uinput"')
     return [
-        {"desc": "no dotool package off arch, clone it from sourcehut",
-         "run": ["git", "clone", "https://git.sr.ht/~geb/dotool"]},
+        _clone_step("no dotool package off arch, clone it from sourcehut",
+                    "https://git.sr.ht/~geb/dotool", "dotool"),
         {"desc": "build the binaries (needs go, libxkbcommon-dev and scdoc)",
-         "shell": "cd dotool && ./build.sh"},
+         "shell": _in_build("dotool", "./build.sh")},
         {"desc": "install dotool, dotoolc and dotoold plus the man page",
-         "shell": "cd dotool && sudo ./build.sh install"},
+         "shell": _in_build("dotool", "sudo ./build.sh install")},
         {"desc": "load the uinput module now and keep it loading on every boot",
          "shell": "sudo modprobe uinput && echo uinput | sudo tee /etc/modules-load.d/uinput.conf"},
         {"desc": "let the input group reach /dev/uinput at 0660, which cures the EACCES the 0620 rule leaves",
@@ -218,6 +242,30 @@ def steps_for(fallback_id, pkg, family):
     return handler(pkg, family)
 
 
+def present(fallback_id, pkg):
+    """
+    Whether this fallback's result is already on the box, so a re-run skips the
+    rebuild instead of compiling ghostty or re-downloading the font every time.
+    Each check probes what the handler actually leaves behind; an unknown handler
+    or a failed probe reads as absent, which only costs a redundant install.
+    """
+    try:
+        if fallback_id in ("cargo", "ghostty", "dotool", "curl"):
+            return shutil.which(pkg["id"]) is not None
+        if fallback_id == "nerdfont":
+            font_dir = Path(FONT_DIR)
+            return font_dir.is_dir() and any(font_dir.glob("JetBrainsMono*"))
+        if fallback_id == "github":
+            return os.path.isdir(os.path.join(ICON_DIR, "Bibata-Modern-Classic"))
+        if fallback_id == "flatpak":
+            r = subprocess.run(["flatpak", "info", "--user", pkg["flatpak_id"]],
+                               capture_output=True)
+            return r.returncode == 0
+    except (OSError, KeyError):
+        pass
+    return False
+
+
 def _selftest():
     m = load_manifest()
     seen = set()
@@ -252,11 +300,25 @@ def _selftest():
     # swww is the special case: no crate, so clone LGFae/swww, build a release, and
     # install both the swww and swww-daemon binaries instead of cargo install.
     swww = steps_for("cargo", {"id": "swww"}, "debian")
-    assert any("https://github.com/LGFae/swww" in s.get("run", []) for s in swww)
+    assert any("https://github.com/LGFae/swww" in s.get("shell", "") for s in swww)
     assert any("cargo build --release" in s.get("shell", "") for s in swww)
     install_sh = next(s["shell"] for s in swww if "install -m755" in s.get("shell", ""))
     assert "swww/target/release/swww" in install_sh and "swww-daemon" in install_sh
     assert not any(s.get("run", [None])[0] == "cargo" for s in swww)
+
+    # every source build works under the wiped cache dir, never the caller's CWD
+    for handler, pid in (("cargo", "swww"), ("ghostty", "ghostty"), ("dotool", "dotool")):
+        steps = steps_for(handler, {"id": pid}, "debian")
+        clone = next(s["shell"] for s in steps if "git clone" in s.get("shell", ""))
+        assert BUILD_DIR in clone and "rm -rf" in clone, \
+            "%s clone does not use the build dir" % pid
+        assert not any(s.get("shell", "").startswith("cd %s " % pid) for s in steps), \
+            "%s still cds into a relative dir" % pid
+
+    # presence probes answer without raising, for every handler in the manifest
+    for pkg in m["packages"]:
+        if pkg.get("fallback"):
+            assert present(pkg["fallback"], pkg) in (True, False)
 
     # flatpak installs per-user so a bare TTY needs no root or polkit.
     flat = steps_for("flatpak", {"flatpak_id": "com.example.App"}, "debian")

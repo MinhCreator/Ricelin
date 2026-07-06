@@ -659,6 +659,18 @@ def _selftest():
         check((root / "hypr" / "scripts" / "lock.sh").exists(),
               "non-protected code files still refreshed on re-deploy")
 
+    # 11. drift guard: PRESERVED is a hand mirror of the update engine's PROTECTED
+    # (the engine ships standalone and can't be imported at runtime). Adding a
+    # protected file to one list but not the other silently splits the two update
+    # paths, so the selftest holds them byte-equal.
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "_ricelin_update", REPO_ROOT / "configs" / "hypr" / "scripts" / "ricelin-update.py")
+    engine = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(engine)
+    check(PRESERVED == engine.PROTECTED,
+          "PRESERVED matches the update engine's PROTECTED list")
+
     print(f"\n:: all {passed} checks passed")
     return 0
 

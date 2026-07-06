@@ -224,7 +224,10 @@ def _build_plan(manifest, info, choices):
         if r["action"] == "skip":
             continue
         if r["action"] == "fallback":
-            fb.append((r["id"], r["target"], by_id[r["id"]]))
+            if fallbacks.present(r["target"], by_id[r["id"]]):
+                skipped.append(r["id"])
+            else:
+                fb.append((r["id"], r["target"], by_id[r["id"]]))
             continue
         if pkg.is_installed(r["target"], family):
             skipped.append(r["id"])
@@ -301,8 +304,22 @@ def _summary_lines(info, choices, plan, args, do_pkgs):
         lines.append("Install Brave with the matching Ricelin theme.")
     if choices["fish"]:
         lines.append("Set fish as your login shell.")
-    lines.append("Back up and deploy the Ricelin config.")
+    if _is_update(info):
+        lines.append("Update the Ricelin config; your Settings are kept.")
+    else:
+        lines.append("Back up and deploy the Ricelin config.")
     return lines
+
+
+def _is_update(info):
+    """
+    True when this run lands on top of an earlier Ricelin deploy, spotted by the
+    managed marker on the two dirs that always deploy. That flips the messaging
+    from "back up and deploy" to "update, your files are kept", since a managed
+    replace makes no backup and carries the protected user files across.
+    """
+    existing = info["existing"]
+    return any(existing.get(name, {}).get("managed") for name in ("hypr", "quickshell"))
 
 
 def seed_wallpapers(dry):
@@ -313,29 +330,35 @@ def seed_wallpapers(dry):
     empty picker, the palette never fires. Create the dir plus the downloads
     subfolder and the ricelin cache, and when it holds no images yet, copy the
     tracked starter set in so swww, the picker and the palette all light up.
+    Fail-soft like every other step: an OSError comes back as (ok, detail) for
+    the report instead of aborting the run.
     """
     home = Path.home()
     wp = home / "Ricelin" / "wallpapers"
     starters = Path(__file__).resolve().parent / "starter-wallpapers"
     if dry:
         print("  would seed wallpapers -> ~/Ricelin/wallpapers")
-        return
-    (wp / "downloads").mkdir(parents=True, exist_ok=True)
-    (home / ".cache" / "ricelin").mkdir(parents=True, exist_ok=True)
-    exts = (".jpg", ".jpeg", ".png")
-    has_image = any(p.is_file() and p.suffix.lower() in exts for p in wp.iterdir())
-    if has_image:
-        print(f"  wallpapers already present -> {wp}")
-        return
-    if not starters.is_dir():
-        print(f"  no starter wallpapers to seed at {starters}")
-        return
-    seeded = 0
-    for src in sorted(starters.iterdir()):
-        if src.is_file() and src.suffix.lower() in exts:
-            shutil.copy2(src, wp / src.name)
-            seeded += 1
-    print(f"  seeded {seeded} starter wallpaper(s) -> {wp}")
+        return True, ""
+    try:
+        (wp / "downloads").mkdir(parents=True, exist_ok=True)
+        (home / ".cache" / "ricelin").mkdir(parents=True, exist_ok=True)
+        exts = (".jpg", ".jpeg", ".png")
+        has_image = any(p.is_file() and p.suffix.lower() in exts for p in wp.iterdir())
+        if has_image:
+            print(f"  wallpapers already present -> {wp}")
+            return True, ""
+        if not starters.is_dir():
+            print(f"  no starter wallpapers to seed at {starters}")
+            return True, ""
+        seeded = 0
+        for src in sorted(starters.iterdir()):
+            if src.is_file() and src.suffix.lower() in exts:
+                shutil.copy2(src, wp / src.name)
+                seeded += 1
+        print(f"  seeded {seeded} starter wallpaper(s) -> {wp}")
+        return True, ""
+    except OSError as exc:
+        return False, f"{exc}: seed wallpapers"
 
 
 def bridge_wallpaper_binary(dry):
@@ -434,24 +457,32 @@ def _seed_update_baseline(source, config_root, dry):
     Best effort: only the git-clone install path (the real curl-bash flow) has a sha
     to record, so a tarball or dev run with no checkout is simply skipped. The engine
     itself ignores a box that already carries a manifest or that updates through
-    plain git, so calling it here is always safe.
+    plain git, so calling it here is always safe. Returns (ok, detail); a failed
+    baseline means the updater would report a stale box as current forever, so the
+    caller surfaces it instead of letting it vanish.
     """
     if dry:
-        return
+        return True, ""
     repo = Path(source).resolve().parent
     try:
         head = subprocess.run(
             ["git", "-C", str(repo), "rev-parse", "HEAD"],
             capture_output=True, text=True, check=True).stdout.strip()
     except (OSError, subprocess.CalledProcessError):
-        return
+        return True, ""
     engine = Path(config_root) / "hypr" / "scripts" / "ricelin-update.py"
     if not head or not engine.exists():
-        return
-    subprocess.run(
-        [sys.executable, str(engine), "baseline", "--sha", head,
-         "--config-root", str(config_root)],
-        check=False)
+        return True, ""
+    try:
+        result = subprocess.run(
+            [sys.executable, str(engine), "baseline", "--sha", head,
+             "--config-root", str(config_root)],
+            capture_output=True, text=True)
+    except OSError as exc:
+        return False, str(exc)
+    if result.returncode != 0:
+        return False, (result.stderr or result.stdout or "").strip() or "baseline failed"
+    return True, ""
 
 
 def _report(plan, failures, notes, info, choices, args, do_pkgs, dry):
@@ -475,7 +506,11 @@ def _report(plan, failures, notes, info, choices, args, do_pkgs, dry):
     steps.append(("log back in", "fish and the input group need a fresh session"))
     if info["init"] != "systemd" and do_pkgs:
         steps.append(("enable services", "NetworkManager and bluetooth via your init"))
-    steps.append(("start Hyprland", "from a TTY"))
+    if do_pkgs or shutil.which("Hyprland"):
+        steps.append(("start Hyprland", "from a TTY"))
+    else:
+        steps.append(("install Hyprland", "packages were skipped, the rice needs it"))
+    steps.append(("open the launcher", "Super+Space; keybinds live in Settings"))
     steps.append(("pick a wallpaper", "Super+C to swap or grab more"))
     if choices["brave"]:
         steps.append(("brave theme",
@@ -496,7 +531,7 @@ def run(args):
     manifest = distro.load_manifest()
     info = detect()
     family_ok = info["family"] in distro.FAMILIES
-    do_pkgs = not args.no_deps and family_ok
+    do_pkgs = not args.no_deps and family_ok and not info["immutable"]
 
     tui.banner()
     helper = info["aur_helper"]
@@ -507,13 +542,43 @@ def run(args):
     else:
         helper_label = "Not needed"
     has_config = any(v["exists"] for v in info["existing"].values())
+    if _is_update(info):
+        config_label = "Ricelin (this run updates it, your Settings are kept)"
+    elif has_config:
+        config_label = "Found (backed up before anything is replaced)"
+    else:
+        config_label = "Fresh machine"
     tui.detected([
         ("OS", info["pretty"], True),
         ("Session", info["compositor"], True),
         ("Packages", info["pm"], True),
         ("AUR helper", helper_label, True),
-        ("Configs", "Found" if has_config else "Fresh machine", True),
+        ("Configs", config_label, True),
     ])
+
+    # An unsupported family (Gentoo, Void, ...) gets a loud gate up front, not a
+    # quiet mid-run info line: nothing installs there, so the rice will miss its
+    # dependencies unless the user provides them. Same gate for a read-only-root
+    # box like SteamOS, where the package manager cannot write the system at all.
+    if not args.no_deps and not do_pkgs:
+        if info["immutable"]:
+            why = "This system has a read-only root, so no packages can be installed."
+        else:
+            why = (f"{info['pretty']} is not a supported distro family "
+                   "(arch, debian, fedora or suse), so no packages will be installed.")
+        warn = [why,
+                "Only the configs will be deployed. The rice needs Hyprland, "
+                "quickshell and its other dependencies installed by hand, "
+                "at your own risk."]
+        if args.quickstart:
+            tui.info(warn)
+        else:
+            try:
+                if not tui.confirm("Unsupported system", warn + ["Continue anyway?"]):
+                    tui.outro("Cancelled")
+                    return 0
+            except RuntimeError:
+                tui.info(warn)
 
     if args.quickstart:
         choices = _default_choices(args, info, manifest)
@@ -525,10 +590,6 @@ def run(args):
             choices = _default_choices(args, info, manifest)
 
     plan = _build_plan(manifest, info, choices)
-
-    if not family_ok and not args.no_deps:
-        tui.info([f"Unsupported distro family ({info['pretty']}), "
-                  "skipping packages and deploying configs only."])
 
     summary = _summary_lines(info, choices, plan, args, do_pkgs)
     if args.quickstart:
@@ -547,7 +608,8 @@ def run(args):
         if not ok:
             failures.append((step, detail, hint))
 
-    needs_sudo = (do_pkgs or choices["sddm"] or choices.get("grub")) and not dry
+    needs_sudo = (do_pkgs or choices["sddm"] or choices.get("grub")
+                  or choices["fish"] or choices["brave"]) and not dry
     keepalive_stop = sudo_keepalive() if needs_sudo else None
     try:
         if do_pkgs:
@@ -658,16 +720,24 @@ def run(args):
             notes.append("Linked awww to swww in ~/.local/bin. Make sure "
                          "~/.local/bin is on PATH so the wallpaper script finds it.")
 
-        # j. fish as the login shell, kept even with --no-deps.
+        # j. fish as the login shell, kept even with --no-deps. Never chsh onto a
+        #    binary that is not there: root's chsh skips the shell validation, so
+        #    a missing fish would land in /etc/passwd and break every login.
         if choices["fish"]:
-            fishbin = shutil.which("fish") or "/usr/bin/fish"
-            # chsh prompts for the login password through PAM, which a piped
-            # `curl | bash` run has no terminal for, so it always failed. Set it
-            # as root instead; the sudo timestamp is already warm from the
-            # package step, so this just goes through.
-            ok, detail = _run(["sudo", "chsh", "-s", fishbin, getpass.getuser()], dry)
-            record(ok, detail, "Set fish as login shell",
-                   "Run: chsh -s $(command -v fish)")
+            fishbin = shutil.which("fish")
+            if fishbin:
+                # chsh prompts for the login password through PAM, which a piped
+                # `curl | bash` run has no terminal for, so it always failed. Set
+                # it as root instead; the sudo timestamp is already warm.
+                ok, detail = _run(["sudo", "chsh", "-s", fishbin, getpass.getuser()], dry)
+                record(ok, detail, "Set fish as login shell",
+                       "Run: chsh -s $(command -v fish)")
+            elif dry:
+                print("  would set fish as login shell (once fish is installed)")
+            else:
+                record(False, "fish is not installed, login shell left unchanged",
+                       "Set fish as login shell",
+                       "Install fish, then run: chsh -s $(command -v fish)")
 
         # k. deploy the configs and make them portable. A copytree or write
         #    that hits an OSError mid-iteration is recorded and stepped past,
@@ -705,7 +775,9 @@ def run(args):
 
         # l. seed a starter wallpaper so the first boot has a background, a
         #    populated picker and a palette to render.
-        seed_wallpapers(dry)
+        ok, detail = seed_wallpapers(dry)
+        record(ok, detail, "Seed wallpapers",
+               "Copy any image into ~/Ricelin/wallpapers yourself.")
 
         # m. themes.
         if choices["sddm"]:
@@ -732,8 +804,12 @@ def run(args):
         if choices["brave"]:
             if do_pkgs:
                 family = info["family"]
-                brave_pkg = next(p for p in manifest["packages"] if p["id"] == "brave")
-                action, target = distro.resolve(brave_pkg, family, choices["aur_choice"])
+                brave_pkg = next(
+                    (p for p in manifest["packages"] if p["id"] == "brave"), None)
+                if brave_pkg is None:
+                    action, target = "skip", None
+                else:
+                    action, target = distro.resolve(brave_pkg, family, choices["aur_choice"])
                 if action == "skip":
                     notes.append("No Brave package for this distro, skipped the install.")
                 elif action == "fallback":
@@ -765,8 +841,66 @@ def run(args):
         if keepalive_stop:
             keepalive_stop()
 
-    _seed_update_baseline(args.source, deploy.CONFIG_ROOT, dry)
+    ok, detail = _seed_update_baseline(args.source, deploy.CONFIG_ROOT, dry)
+    if not ok:
+        failures.append(("Seed update baseline", detail,
+                         "Open Settings > Updates once; the first apply sets it up."))
     _report(plan, failures, notes, info, choices, args, do_pkgs, dry)
+    return 0
+
+
+def run_uninstall(args):
+    """
+    Remove every Ricelin-managed config and put the pre-install backups back.
+    Packages stay; only the deployed files go. Confirms interactively before
+    touching anything, and refuses to run headless, since a piped one-liner
+    should never be able to wipe a config unattended.
+    """
+    dry = args.dry_run
+    tui.banner()
+    plan = deploy.uninstall(config_root=deploy.CONFIG_ROOT, apply=False)
+    removals = [a for a in plan if a["action"] == "remove"]
+    if not removals:
+        tui.info(["Nothing Ricelin-managed found in ~/.config, nothing to remove."])
+        tui.outro("Done")
+        return 0
+
+    lines = []
+    for a in removals:
+        line = f"Remove {a['dest']}"
+        if a["restored"]:
+            line += f", restore your backup from {a['restored']}"
+        lines.append(line)
+    lines.append("Installed packages are not touched.")
+
+    if dry:
+        tui.info(lines)
+        tui.outro("Dry run complete")
+        return 0
+    try:
+        if not tui.confirm("Remove Ricelin", lines):
+            tui.outro("Cancelled")
+            return 0
+    except RuntimeError:
+        tui.info(["No controlling terminal; run the uninstall from a real "
+                  "terminal so it can confirm first."])
+        return 1
+
+    for a in deploy.uninstall(config_root=deploy.CONFIG_ROOT, apply=True):
+        if a["action"] == "remove":
+            tail = f" (restored {a['restored']})" if a["restored"] else ""
+            print(f"  removed: {a['dest']}{tail}")
+
+    link = Path.home() / ".local" / "bin" / "ricelin"
+    if link.is_symlink():
+        try:
+            link.unlink()
+            print(f"  removed: {link}")
+        except OSError:
+            pass
+    tui.info(["The repo clone in ~/.local/share/ricelin and your wallpapers in "
+              "~/Ricelin are left for you to delete."])
+    tui.outro("Ricelin removed")
     return 0
 
 
@@ -787,8 +921,14 @@ def main():
                         help="Preselect Brave plus its Ricelin theme")
     parser.add_argument("--no-deps", action="store_true",
                         help="Skip the package step, only deploy the configs")
+    parser.add_argument("--reinstall", action="store_true",
+                        help="Run the full install over an existing Ricelin install")
+    parser.add_argument("--uninstall", action="store_true",
+                        help="Remove the deployed configs and restore the backups")
     args = parser.parse_args()
     try:
+        if args.uninstall:
+            return run_uninstall(args)
         return run(args)
     except KeyboardInterrupt:
         tui.outro("Cancelled")
