@@ -6,6 +6,14 @@ WPDIR=$(jq -r '.wallpaperDir // ""' "$flags_file" 2>/dev/null || echo "")
 [ -n "$WPDIR" ] || WPDIR="$HOME/Ricelin/wallpapers"
 STATE="${XDG_STATE_HOME:-$HOME/.local/state}/ricelin-wallpaper"
 BAG="${XDG_STATE_HOME:-$HOME/.local/state}/ricelin-wallpaper-bag"
+STILL="${XDG_STATE_HOME:-$HOME/.local/state}/ricelin-wallpaper-still.png"
+
+is_video() {
+    case "${1##*.}" in
+        [Mm][Pp]4|[Ww][Ee][Bb][Mm]|[Mm][Kk][Vv]|[Mm][Oo][Vv]) return 0 ;;
+        *) return 1 ;;
+    esac
+}
 
 ensure_daemon() {
     awww query >/dev/null 2>&1 && return 0
@@ -21,7 +29,7 @@ ensure_daemon() {
 }
 
 list_pics() {
-    find "$WPDIR" -type f \( -iname '*.jpg' -o -iname '*.png' \)
+    find "$WPDIR" -type f \( -iname '*.jpg' -o -iname '*.png' -o -iname '*.gif' -o -iname '*.webp' -o -iname '*.mp4' -o -iname '*.webm' -o -iname '*.mkv' -o -iname '*.mov' \)
 }
 
 refill_bag() {
@@ -65,10 +73,14 @@ ensure_daemon || exit 0
 cmd="${1:-}"
 
 if [ "$cmd" = "init" ]; then
-    [ "$daemon_was_running" = true ] && exit 0
-    if [ -r "$STATE" ] && pic=$(cat "$STATE") && [ -f "$pic" ]; then
-        :
-    else
+    pic=$(cat "$STATE" 2>/dev/null || true)
+    if [ "$daemon_was_running" = true ]; then
+        video_orphan=false
+        if [ -n "$pic" ] && [ -f "$pic" ] && is_video "$pic" && ! pgrep -x mpvpaper >/dev/null 2>&1; then
+            video_orphan=true
+        fi
+        [ "$video_orphan" = true ] || exit 0
+    elif [ -z "$pic" ] || [ ! -f "$pic" ]; then
         pic=$(pop_bag) || exit 0
     fi
 elif [ "$cmd" = "set" ]; then
@@ -80,12 +92,30 @@ fi
 
 [ -n "$pic" ] || exit 0
 
-awww img "$pic" \
+if pgrep -x mpvpaper >/dev/null 2>&1; then
+    pkill -x mpvpaper 2>/dev/null || true
+    for _ in $(seq 1 10); do
+        pgrep -x mpvpaper >/dev/null 2>&1 || break
+        sleep 0.1
+    done
+fi
+
+show="$pic"
+if is_video "$pic"; then
+    ffmpeg -y -loglevel error -i "$pic" -frames:v 1 -f image2 -c:v png "$STILL.tmp" && mv "$STILL.tmp" "$STILL"
+    show="$STILL"
+fi
+
+awww img "$show" \
     --transition-type wave \
     --transition-angle 30 \
     --transition-wave "60,30" \
     --transition-fps 60 \
     --transition-step 90
+
+if is_video "$pic"; then
+    setsid -f mpvpaper -p -o "no-audio loop-file=inf hwdec=auto" '*' "$pic" >/dev/null 2>&1
+fi
 
 mkdir -p "$(dirname "$STATE")"
 printf '%s\n' "$pic" > "$STATE"
@@ -96,7 +126,7 @@ if [ "$pmode" = "manual" ]; then
     md=$(jq -r 'if .manualDark == false then "light" else "dark" end' "$flags_file" 2>/dev/null || echo dark)
     python3 "$(dirname "$0")/wallcolors.py" --hue "$mh" "$md" >/dev/null 2>&1 || true
 else
-    python3 "$(dirname "$0")/wallcolors.py" "$pic" >/dev/null 2>&1 || true
+    python3 "$(dirname "$0")/wallcolors.py" "$show" >/dev/null 2>&1 || true
 fi
 hyprctl reload >/dev/null 2>&1 || true
 busctl --user call com.mitchellh.ghostty /com/mitchellh/ghostty org.gtk.Actions \
