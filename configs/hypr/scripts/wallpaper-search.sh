@@ -3,23 +3,32 @@
 UA="Mozilla/5.0 (X11; Linux x86_64) Gecko/20100101 Firefox/126.0"
 
 search() {
-    local query="${1:-}"
+    local query="${1:-}" kind="${2:-all}"
     [ -n "$query" ] || { printf '[]\n'; return 0; }
 
+    local q="$query" f=",,,"
+    case "$kind" in
+        motion) q="$query gif"; f="type:gif" ;;
+        still)  f="type:photo" ;;
+    esac
+
     local enc vqd raw
-    enc=$(jq -rn --arg q "$query" '$q|@uri') || { printf '[]\n'; return 0; }
+    enc=$(jq -rn --arg q "$q" '$q|@uri') || { printf '[]\n'; return 0; }
 
     vqd=$(curl -s --max-time 10 "https://duckduckgo.com/?q=${enc}&iax=images&ia=images" -A "$UA" \
         | grep -oP 'vqd=\\?"?\K[0-9-]+' | head -1)
     [ -n "$vqd" ] || { printf '[]\n'; return 0; }
 
     raw=$(curl -s --max-time 10 \
-        "https://duckduckgo.com/i.js?l=us-en&o=json&q=${enc}&vqd=${vqd}&f=,,,&p=-1" \
+        "https://duckduckgo.com/i.js?l=us-en&o=json&q=${enc}&vqd=${vqd}&f=${f}&p=-1" \
         -A "$UA" -H "Referer: https://duckduckgo.com/")
     [ -n "$raw" ] || { printf '[]\n'; return 0; }
 
-    printf '%s' "$raw" | jq -c '
+    printf '%s' "$raw" | jq -c --arg kind "$kind" '
         (.results // [])
+        | if $kind == "motion" then map(select(.image // "" | test("\\.gif(\\?|$)"; "i")))
+          elif $kind == "still" then map(select(.image // "" | test("\\.gif(\\?|$)"; "i") | not))
+          else . end
         | map({
             image: .image,
             thumb: (.thumbnail // .image),
@@ -55,6 +64,8 @@ download() {
     case "$fmt" in
         JPEG) ext=jpg ;;
         PNG)  ext=png ;;
+        GIF)  ext=gif ;;
+        WEBP) ext=webp ;;
         *)    ext=png ;;
     esac
 
@@ -73,7 +84,7 @@ download() {
 }
 
 case "${1:-}" in
-    search)   search "${2:-}" ;;
+    search)   search "${2:-}" "${3:-all}" ;;
     download) download "${2:-}" ;;
     *)        printf '[]\n'; exit 0 ;;
 esac

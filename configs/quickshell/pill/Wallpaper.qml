@@ -40,12 +40,45 @@ PillSurface {
     property var ddgResults: []
 
     /**
+     * Kind filter shared by both views: "all", "still" or "motion". Locally it
+     * splits the snapshot by extension (gif and video files count as motion);
+     * in search mode it steers the DDG request (gif type filter) so the chips
+     * act as one control everywhere.
+     */
+    property string kindFilter: "all"
+
+    function isMotion(path) {
+        return /\.(gif|mp4|webm|mkv|mov)$/i.test(path);
+    }
+
+    readonly property var localItems: {
+        if (kindFilter === "all")
+            return Walls.entries;
+        var wantMotion = kindFilter === "motion";
+        var out = [];
+        for (var i = 0; i < Walls.entries.length; i++)
+            if (isMotion(Walls.entries[i].path) === wantMotion)
+                out.push(Walls.entries[i]);
+        return out;
+    }
+
+    onKindFilterChanged: {
+        if (searching && query.length > 0) {
+            debounce.restart();
+        } else {
+            focusIndex = 0;
+            pos = 0;
+            centerOnCurrent();
+        }
+    }
+
+    /**
      * Active model and its select handler. The strip, navigation and empty
      * states all read these so the local and search views share one code path:
      * a populated query in search mode shows remote results, anything else the
      * local snapshot.
      */
-    readonly property var items: (searching && query.length > 0) ? ddgResults : Walls.entries
+    readonly property var items: (searching && query.length > 0) ? ddgResults : localItems
     readonly property int itemCount: items.length
 
     /**
@@ -130,8 +163,8 @@ PillSurface {
 
     function centerOnCurrent() {
         var idx = 0;
-        for (var i = 0; i < Walls.entries.length; i++)
-            if (Walls.entries[i].path === Walls.current) {
+        for (var i = 0; i < localItems.length; i++)
+            if (localItems[i].path === Walls.current) {
                 idx = i;
                 break;
             }
@@ -194,7 +227,7 @@ PillSurface {
                 root.ddgResults = [];
                 return;
             }
-            searchProc.command = ["bash", root.searchScript, "search", root.query];
+            searchProc.command = ["bash", root.searchScript, "search", root.query, root.kindFilter];
             searchProc.running = true;
         }
     }
@@ -246,7 +279,7 @@ PillSurface {
         anchors.left: parent.left
         anchors.leftMargin: 20 * root.s
         anchors.right: parent.right
-        anchors.rightMargin: 20 * root.s
+        anchors.rightMargin: filterRow.width + 30 * root.s
         s: root.s
         kanji: "探"
         placeholder: "Search wallpapers"
@@ -265,6 +298,59 @@ PillSurface {
             if (e.key === Qt.Key_Backspace && root.query.length <= 1 && searchField.input.selectedText.length === 0) {
                 root.exitSearch();
                 e.accepted = true;
+            }
+        }
+    }
+
+    Row {
+        id: filterRow
+        anchors.top: parent.top
+        anchors.topMargin: 10 * root.s
+        anchors.right: parent.right
+        anchors.rightMargin: 14 * root.s
+        spacing: 5 * root.s
+        z: 40
+
+        Repeater {
+            model: [
+                { kind: "all", label: "all" },
+                { kind: "still", label: "still" },
+                { kind: "motion", label: "live" }
+            ]
+
+            delegate: Rectangle {
+                id: chip
+
+                required property var modelData
+
+                readonly property bool on: root.kindFilter === modelData.kind
+
+                width: chipText.implicitWidth + 14 * root.s
+                height: chipText.implicitHeight + 7 * root.s
+                radius: height / 2
+                color: on ? Qt.alpha(Theme.vermLit, 0.16) : "transparent"
+                border.width: 1
+                border.color: on ? Theme.vermLit : Theme.border
+
+                Behavior on border.color { ColorAnimation { duration: Motion.fast } }
+
+                Text {
+                    id: chipText
+                    anchors.centerIn: parent
+                    text: chip.modelData.label
+                    color: chip.on ? Theme.cream : Theme.faint
+                    font.family: Theme.font
+                    font.pixelSize: 9.5 * root.s
+                    font.weight: Font.Medium
+                    font.letterSpacing: 0.3 * root.s
+                    Behavior on color { ColorAnimation { duration: Motion.fast } }
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.kindFilter = chip.modelData.kind
+                }
             }
         }
     }
@@ -468,9 +554,13 @@ PillSurface {
         anchors.centerIn: parent
         visible: root.itemCount === 0 && !searchProc.running
         text: {
-            if (!root.searching)
-                return "No wallpapers in ~/Ricelin/wallpapers";
-            return root.query.length ? "no results" : "No wallpapers in ~/Ricelin/wallpapers";
+            if (root.searching && root.query.length)
+                return "no results";
+            if (root.kindFilter === "motion")
+                return "no live wallpapers yet";
+            if (root.kindFilter === "still")
+                return "no still wallpapers";
+            return "No wallpapers in ~/Ricelin/wallpapers";
         }
         color: Theme.faint
         font.family: Theme.font
