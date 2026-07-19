@@ -40,6 +40,9 @@ PillSurface {
     property string query: ""
     property var ddgResults: []
 
+    /** Inline folder edit in the header: true while the path field holds focus. */
+    property bool editingDir: false
+
     /**
      * Kind filter shared by both views: "all", "still" or "motion". Locally it
      * splits the snapshot by extension (gif and video files count as motion);
@@ -252,6 +255,7 @@ PillSurface {
 
     onActiveChanged: if (active) {
         searching = false;
+        editingDir = false;
         query = "";
         ddgResults = [];
         searchField.text = "";
@@ -520,6 +524,89 @@ PillSurface {
             FilterChip { id: chipAll; kind: "all"; label: "all" }
             FilterChip { id: chipStill; kind: "still"; label: "still" }
             FilterChip { id: chipLive; kind: "motion"; label: "live" }
+        }
+    }
+
+    /**
+     * Current wallpaper folder as a quiet header caption. A click swaps the
+     * label for an inline path edit seeded from flags.json: Return commits the
+     * override (empty restores autodetect), Escape cancels. The field holds
+     * focus while editing, so its keys never reach the strip's type-to-search.
+     */
+    Item {
+        id: folderRow
+        anchors.top: parent.top
+        anchors.topMargin: 6 * root.s
+        anchors.left: parent.left
+        anchors.leftMargin: 20 * root.s
+        anchors.right: filterRow.left
+        anchors.rightMargin: 12 * root.s
+        height: 30 * root.s
+        visible: !root.searching
+        z: 30
+
+        Text {
+            anchors.verticalCenter: parent.verticalCenter
+            anchors.left: parent.left
+            anchors.right: parent.right
+            visible: !root.editingDir
+            text: Walls.wpDir
+            elide: Text.ElideMiddle
+            color: folderHover.hovered ? Theme.subtle : Theme.faint
+            font.family: Theme.font
+            font.pixelSize: 9.5 * root.s
+            Behavior on color { ColorAnimation { duration: Motion.fast } }
+        }
+
+        TextInput {
+            id: dirField
+            anchors.verticalCenter: parent.verticalCenter
+            anchors.left: parent.left
+            anchors.right: parent.right
+            visible: root.editingDir
+            enabled: root.editingDir
+            clip: true
+            color: Theme.cream
+            font.family: Theme.font
+            font.pixelSize: 11 * root.s
+            selectByMouse: true
+            selectionColor: Theme.verm
+            Keys.onPressed: (e) => {
+                if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter) {
+                    Flags.wallpaperDir = dirField.text.trim();
+                    root.editingDir = false;
+                    e.accepted = true;
+                } else if (e.key === Qt.Key_Escape) {
+                    root.editingDir = false;
+                    e.accepted = true;
+                }
+            }
+
+            Text {
+                anchors.fill: parent
+                verticalAlignment: Text.AlignVCenter
+                visible: dirField.text.length === 0
+                text: Walls.wpDir
+                elide: Text.ElideMiddle
+                color: Theme.faint
+                font.family: Theme.font
+                font.pixelSize: 11 * root.s
+            }
+        }
+
+        HoverHandler {
+            id: folderHover
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            enabled: !root.editingDir
+            cursorShape: Qt.PointingHandCursor
+            onClicked: {
+                root.editingDir = true;
+                dirField.text = Flags.wallpaperDir;
+                Qt.callLater(dirField.forceActiveFocus);
+            }
         }
     }
 
@@ -881,7 +968,7 @@ PillSurface {
                 return "no live wallpapers yet";
             if (root.kindFilter === "still")
                 return "no still wallpapers";
-            return "No wallpapers in ~/Ricelin/wallpapers";
+            return "No wallpapers in " + Walls.wpDir;
         }
         color: Theme.faint
         font.family: Theme.font

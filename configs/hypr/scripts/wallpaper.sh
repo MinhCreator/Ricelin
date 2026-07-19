@@ -3,7 +3,21 @@ set -euo pipefail
 
 flags_file="${XDG_STATE_HOME:-$HOME/.local/state}/ricelin/flags.json"
 WPDIR=$(jq -r '.wallpaperDir // ""' "$flags_file" 2>/dev/null || echo "")
-[ -n "$WPDIR" ] || WPDIR="$HOME/Ricelin/wallpapers"
+if [ -z "$WPDIR" ]; then
+    # No explicit folder set: adopt an existing collection in the usual spots.
+    # Two or more images counts as a collection, a single stray file does not,
+    # so an incidental picture never hijacks the default.
+    for cand in "$HOME/Pictures/Wallpapers" "$HOME/Pictures/wallpapers" "$HOME/Wallpapers" "$HOME/wallpapers"; do
+        [ -d "$cand" ] || continue
+        n=$(find "$cand" -maxdepth 1 -type f \( -iname '*.jpg' -o -iname '*.png' -o -iname '*.gif' -o -iname '*.webp' -o -iname '*.mp4' -o -iname '*.webm' -o -iname '*.mkv' -o -iname '*.mov' \) | head -2 | wc -l)
+        if [ "$n" -ge 2 ]; then WPDIR="$cand"; break; fi
+    done
+    [ -n "$WPDIR" ] || WPDIR="$HOME/Ricelin/wallpapers"
+fi
+RESOLVED="${XDG_STATE_HOME:-$HOME/.local/state}/ricelin-wallpaper-dir"
+printf '%s\n' "$WPDIR" > "$RESOLVED"
+# No-op mode for the QML side: re-resolve the folder and exit before touching any daemon state.
+[ "${1:-}" = "resolve" ] && exit 0
 STATE="${XDG_STATE_HOME:-$HOME/.local/state}/ricelin-wallpaper"
 MAP="${XDG_STATE_HOME:-$HOME/.local/state}/ricelin-wallpaper-map"
 BAG="${XDG_STATE_HOME:-$HOME/.local/state}/ricelin-wallpaper-bag"
