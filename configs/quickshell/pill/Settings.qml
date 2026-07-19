@@ -172,7 +172,7 @@ SettingsSurface {
             id: workspacesRow
             surface: root
             captionOnFocus: true
-            icon: "app-window"
+            icon: "layers"
             name: "Workspaces"
             sub: "Special spaces and their keys"
 
