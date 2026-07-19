@@ -75,6 +75,22 @@ Item {
     readonly property real wifiLevel: (wifiActive && wifiActive.signalStrength) || 0
     readonly property bool surfaceOpen: surface.length > 0
     property bool hoverLatch: false
+
+    /**
+     * False for the first seconds after the shell maps. Hyprland hands pointer
+     * focus to a freshly mapped layer surface at the cursor's position, which
+     * the window-level HoverHandler reads as a pill hover and latches the pill
+     * open (issue #20). Latching only after boot settles filters that spurious
+     * enter; a real hover during the window just expands late, harmlessly.
+     */
+    property bool bootSettled: false
+
+    Timer {
+        interval: 3000
+        running: true
+        onTriggered: pill.bootSettled = true
+    }
+
     readonly property bool expanded: surfaceOpen || held || hoverLatch
 
     /**
@@ -788,7 +804,8 @@ Item {
 
     onHoveredChanged: {
         if (hovered) {
-            hoverLatch = true;
+            if (bootSettled)
+                hoverLatch = true;
             graceTimer.stop();
         } else {
             graceTimer.restart();
