@@ -8,6 +8,7 @@ STATE="${XDG_STATE_HOME:-$HOME/.local/state}/ricelin-wallpaper"
 MAP="${XDG_STATE_HOME:-$HOME/.local/state}/ricelin-wallpaper-map"
 BAG="${XDG_STATE_HOME:-$HOME/.local/state}/ricelin-wallpaper-bag"
 STILL="${XDG_STATE_HOME:-$HOME/.local/state}/ricelin-wallpaper-still.png"
+WLOG="${XDG_STATE_HOME:-$HOME/.local/state}/ricelin/wallcolors.log"
 
 is_video() {
     case "${1##*.}" in
@@ -190,12 +191,13 @@ palette_update() {
     mkdir -p "$(dirname "$STATE")"
     printf '%s\n' "$pic" > "$STATE"
     pmode=$(jq -r '.paletteMode // "static"' "$flags_file" 2>/dev/null || echo static)
+    mkdir -p "$(dirname "$WLOG")"
     if [ "$pmode" = "manual" ]; then
         mh=$(jq -r '.manualHue // 30' "$flags_file" 2>/dev/null || echo 30)
         md=$(jq -r 'if .manualDark == false then "light" else "dark" end' "$flags_file" 2>/dev/null || echo dark)
-        python3 "$(dirname "$0")/wallcolors.py" --hue "$mh" "$md" >/dev/null 2>&1 || true
+        python3 "$(dirname "$0")/wallcolors.py" --hue "$mh" "$md" >>"$WLOG" 2>&1 || true
     else
-        python3 "$(dirname "$0")/wallcolors.py" "$show" >/dev/null 2>&1 || true
+        python3 "$(dirname "$0")/wallcolors.py" "$show" >>"$WLOG" 2>&1 || true
     fi
     hyprctl reload >/dev/null 2>&1 || true
     busctl --user call com.mitchellh.ghostty /com/mitchellh/ghostty org.gtk.Actions \
